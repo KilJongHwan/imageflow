@@ -1,0 +1,6 @@
+# 이미지 프로세스 saas 프로젝트
+
+# 도커 컨테이너 전부 삭제
+docker-compose down -v --rmi all
+ㄸ 도커 컨테이너 올리기
+docker-compose up -d
