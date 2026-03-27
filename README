@@ -1,6 +1,97 @@
-# 이미지 프로세스 saas 프로젝트
+# ImageFlow
 
-# 도커 컨테이너 전부 삭제
-docker-compose down -v --rmi all
-ㄸ 도커 컨테이너 올리기
+ImageFlow is an image-processing SaaS project scaffold with a Spring Boot backend and placeholders for a frontend app and image-processing agent.
+
+## Structure
+
+```text
+imageflow/
+|- backend/       Spring Boot API server
+|- frontend/      reserved for the client application
+|- image-agent/   reserved for async image processing workers
+`- docker-compose.yml
+```
+
+## Current Status
+
+- `backend` is the only runnable service right now.
+- `frontend` and `image-agent` contain starter notes only.
+- PostgreSQL and Redis can be started through Docker Compose.
+
+## Prerequisites
+
+- Java 17+ installed locally
+- Docker Desktop
+
+## Run Infrastructure
+
+From the project root:
+
+```bash
 docker-compose up -d
+```
+
+Stop and remove volumes:
+
+```bash
+docker-compose down -v
+```
+Remove all
+```bash
+docker-compose down -v --rmi all
+```
+
+## Run Backend
+
+From the `backend` directory:
+
+```bash
+./gradlew bootRun
+```
+
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+The backend uses:
+- application port: `8080`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+Quick check:
+
+```text
+GET http://localhost:8080/api/health
+```
+
+Expected response shape:
+
+```json
+{
+  "status": "ok",
+  "service": "imageflow-backend",
+  "timestamp": "2026-03-26T00:00:00Z"
+}
+```
+
+## Test
+
+Backend tests use an in-memory H2 database, so Docker is not required for `test`.
+
+```bash
+./gradlew test
+```
+
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat test
+```
+
+## Notes
+
+- The production datasource is configured in `backend/src/main/resources/application.yaml`.
+- Some experimental domain folders currently exist directly under `backend/`; the actual compiled Java source root is `backend/src/main/java`.
+- As the project grows, consider promoting the repository into a true multi-module build if `frontend` and `image-agent` become active codebases.
