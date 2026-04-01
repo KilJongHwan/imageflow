@@ -1,8 +1,49 @@
 # Frontend
 
-`frontend` is reserved for the user-facing web application.
+This frontend now uses React with Vite.
 
-Suggested next steps:
-- choose the frontend stack (`Next.js`, `React + Vite`, etc.)
-- define routes and auth flow
-- connect to `backend` APIs
+## Files
+
+- `index.html`: Vite entry html
+- `src/main.jsx`: React bootstrap
+- `src/App.jsx`: main page
+- `src/styles.css`: app styles
+- `vite.config.js`: Vite config
+
+## What it does
+
+- checks backend health
+- creates a user
+- creates an image job
+- fetches an image job by id
+
+## Install
+
+```powershell
+cd frontend
+npm install
+```
+
+Recommended runtime:
+
+```text
+Node.js 16+
+```
+
+## Run
+
+```powershell
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+Default backend target:
+
+```text
+http://localhost:8080
+```

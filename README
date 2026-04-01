@@ -55,6 +55,24 @@ Windows PowerShell:
 .\gradlew.bat bootRun
 ```
 
+## Run Frontend
+
+The frontend uses React + Vite in `frontend/`.
+
+PowerShell:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
 The backend uses:
 - application port: `8080`
 - PostgreSQL: `localhost:5432`
