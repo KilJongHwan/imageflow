@@ -6,7 +6,7 @@ from pathlib import Path
 
 import redis
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -54,12 +54,18 @@ def main():
 
 def optimize_image(job):
     image = load_source_image(job)
+    image = apply_crop_mode(image, job)
+
     target_width = job.get("targetWidth")
+    target_height = job.get("targetHeight")
     if target_width:
         width = int(target_width)
-        ratio = width / image.width
-        target_height = max(1, int(image.height * ratio))
-        image = image.resize((width, target_height))
+        if target_height:
+            height = int(target_height)
+        else:
+            ratio = width / image.width
+            height = max(1, int(image.height * ratio))
+        image = image.resize((width, height))
 
     output_format = normalize_format(job.get("outputFormat"))
     quality = int(job.get("quality") or 80)
@@ -68,6 +74,7 @@ def optimize_image(job):
     result_image_url = job.get("resultImageUrl")
 
     output_buffer = BytesIO()
+    image = apply_watermark(image, job.get("watermarkText"))
     save_image(image, output_buffer, output_format, quality)
     output_buffer.seek(0)
 
@@ -92,6 +99,60 @@ def save_image(image, output_buffer, output_format, quality):
     if output_format in {"JPEG", "WEBP"} and image.mode in ("RGBA", "LA"):
         image = image.convert("RGB")
     image.save(output_buffer, format=output_format, quality=quality, optimize=True)
+
+
+def apply_crop_mode(image, job):
+    crop_mode = (job.get("cropMode") or "fit").strip().lower()
+    aspect_ratio = (job.get("aspectRatio") or "original").strip().lower()
+
+    if crop_mode != "center-crop" or aspect_ratio == "original":
+        return image
+
+    ratio_width, ratio_height = parse_aspect_ratio(aspect_ratio)
+    target_ratio = ratio_width / ratio_height
+    current_ratio = image.width / image.height
+
+    if current_ratio > target_ratio:
+        new_width = int(image.height * target_ratio)
+        left = (image.width - new_width) // 2
+        return image.crop((left, 0, left + new_width, image.height))
+
+    new_height = int(image.width / target_ratio)
+    top = (image.height - new_height) // 2
+    return image.crop((0, top, image.width, top + new_height))
+
+
+def apply_watermark(image, watermark_text):
+    if not watermark_text:
+        return image
+
+    if image.mode != "RGBA":
+        image = image.convert("RGBA")
+
+    overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
+    font = ImageFont.load_default()
+    text = watermark_text.strip()
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    x = max(20, image.width - text_width - 28)
+    y = max(20, image.height - text_height - 28)
+    draw.rounded_rectangle(
+        (x - 12, y - 8, x + text_width + 12, y + text_height + 8),
+        radius=14,
+        fill=(17, 24, 39, 120),
+    )
+    draw.text((x, y), text, fill=(255, 255, 255, 220), font=font)
+    return Image.alpha_composite(image, overlay)
+
+
+def parse_aspect_ratio(aspect_ratio):
+    try:
+        left, right = aspect_ratio.split(":")
+        return float(left), float(right)
+    except ValueError as error:
+        raise ValueError(f"invalid aspect ratio: {aspect_ratio}") from error
 
 
 def load_source_image(job):

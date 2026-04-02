@@ -3,6 +3,7 @@ package com.imageflow.backend.domain.image;
 import java.util.UUID;
 import java.nio.file.Path;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,26 +32,32 @@ public class ImageJobService {
     private final ImageJobRepository imageJobRepository;
     private final UsageRecordRepository usageRecordRepository;
     private final ImageJobQueuePublisher imageJobQueuePublisher;
+    private final ImageProcessingService imageProcessingService;
     private final UserService userService;
     private final StorageService storageService;
     private final String publicBaseUrl;
+    private final String processingMode;
 
     public ImageJobService(
             UserRepository userRepository,
             ImageJobRepository imageJobRepository,
             UsageRecordRepository usageRecordRepository,
             ImageJobQueuePublisher imageJobQueuePublisher,
+            ImageProcessingService imageProcessingService,
             UserService userService,
             StorageService storageService,
-            @org.springframework.beans.factory.annotation.Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl
+            @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl,
+            @Value("${app.processing.mode:sync}") String processingMode
     ) {
         this.userRepository = userRepository;
         this.imageJobRepository = imageJobRepository;
         this.usageRecordRepository = usageRecordRepository;
         this.imageJobQueuePublisher = imageJobQueuePublisher;
+        this.imageProcessingService = imageProcessingService;
         this.userService = userService;
         this.storageService = storageService;
         this.publicBaseUrl = publicBaseUrl;
+        this.processingMode = processingMode;
     }
 
     public ImageJobResponse create(CreateImageJobRequest request) {
@@ -80,8 +87,11 @@ public class ImageJobService {
             imageJob.setSourceImageUrl(request.sourceImageUrl().trim());
         }
         imageJob.setTargetWidth(request.targetWidth());
+        imageJob.setTargetHeight(null);
         imageJob.setQuality(quality);
         imageJob.setOutputFormat(resolveOutputFormat(request.outputFormat()));
+        imageJob.setAspectRatio("original");
+        imageJob.setCropMode("fit");
         user.addImageJob(imageJob);
         ImageJob savedJob = imageJobRepository.save(imageJob);
 
@@ -101,8 +111,12 @@ public class ImageJobService {
                 savedJob.getSourceImageUrl(),
                 savedJob.getPrompt(),
                 savedJob.getTargetWidth(),
+                savedJob.getTargetHeight(),
                 savedJob.getQuality(),
                 savedJob.getOutputFormat(),
+                savedJob.getAspectRatio(),
+                savedJob.getWatermarkText(),
+                savedJob.getCropMode(),
                 "optimized/" + savedJob.getId() + "." + savedJob.getOutputFormat(),
                 null,
                 null
@@ -113,37 +127,54 @@ public class ImageJobService {
 
     public ImageJobResponse createGuestUploadJob(
             MultipartFile file,
-            Integer targetWidth,
+            Integer width,
+            Integer height,
             Integer quality,
-            String outputFormat
+            String aspectRatio,
+            String watermarkText,
+            String cropMode
     ) {
         User guestUser = userService.getOrCreateGuestUser();
         StoredFile storedFile = storageService.storeInput(file);
-        String normalizedFormat = resolveOutputFormat(outputFormat);
+        String normalizedFormat = "jpg";
         String outputFilename = UUID.randomUUID() + "." + normalizedFormat;
         Path outputPath = storageService.createOutputPath(outputFilename);
         ImageJob imageJob = new ImageJob(guestUser, "Simple optimize upload", 1);
         imageJob.setSourceImageUrl(publicUrl("input", storedFile.filename()));
-        imageJob.setTargetWidth(targetWidth);
-        imageJob.setQuality(quality == null ? 80 : quality);
+        imageJob.setTargetWidth(width);
+        imageJob.setTargetHeight(height);
+        imageJob.setQuality(resolveQuality(quality));
         imageJob.setOutputFormat(normalizedFormat);
+        imageJob.setAspectRatio(normalizeAspectRatio(aspectRatio));
+        imageJob.setWatermarkText(normalizeOptionalText(watermarkText));
+        imageJob.setCropMode(normalizeCropMode(cropMode));
         guestUser.addImageJob(imageJob);
         ImageJob savedJob = imageJobRepository.save(imageJob);
-        imageJobQueuePublisher.publish(new ImageJobQueueMessage(
+        ImageJobQueueMessage queueMessage = new ImageJobQueueMessage(
                 savedJob.getId(),
                 guestUser.getId(),
                 storedFile.path().toString(),
                 savedJob.getSourceImageUrl(),
                 savedJob.getPrompt(),
                 savedJob.getTargetWidth(),
+                savedJob.getTargetHeight(),
                 savedJob.getQuality(),
                 savedJob.getOutputFormat(),
+                savedJob.getAspectRatio(),
+                savedJob.getWatermarkText(),
+                savedJob.getCropMode(),
                 outputFilename,
                 outputPath.toString(),
                 publicUrl("output", outputFilename)
-        ));
+        );
 
-        System.out.println("get response :: " + savedJob.toString());
+        if ("sync".equalsIgnoreCase(processingMode)) {
+            savedJob.startProcessing();
+            ImageProcessingService.ProcessedImageResult result = imageProcessingService.process(queueMessage);
+            savedJob.markSuccess(result.resultImageUrl(), result.outputObjectKey());
+        } else {
+            imageJobQueuePublisher.publish(queueMessage);
+        }
 
         return ImageJobResponse.from(savedJob);
     }
@@ -189,6 +220,43 @@ public class ImageJobService {
             throw new BadRequestException("outputFormat must be one of webp, jpg, jpeg, png");
         }
         return normalized;
+    }
+
+    private int resolveQuality(Integer quality) {
+        int resolved = quality == null ? 80 : quality;
+        if (resolved < 1 || resolved > 100) {
+            throw new BadRequestException("quality must be between 1 and 100");
+        }
+        return resolved;
+    }
+
+    private String normalizeAspectRatio(String aspectRatio) {
+        if (aspectRatio == null || aspectRatio.isBlank()) {
+            return "original";
+        }
+        String normalized = aspectRatio.trim().toLowerCase();
+        return switch (normalized) {
+            case "original", "1:1", "4:5", "3:4", "16:9", "9:16" -> normalized;
+            default -> throw new BadRequestException("aspectRatio must be one of original, 1:1, 4:5, 3:4, 16:9, 9:16");
+        };
+    }
+
+    private String normalizeCropMode(String cropMode) {
+        if (cropMode == null || cropMode.isBlank()) {
+            return "fit";
+        }
+        String normalized = cropMode.trim().toLowerCase();
+        return switch (normalized) {
+            case "fit", "center-crop" -> normalized;
+            default -> throw new BadRequestException("cropMode must be one of fit, center-crop");
+        };
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private String publicUrl(String bucket, String filename) {

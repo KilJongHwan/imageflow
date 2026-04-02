@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: imageflow-backend
+    runtime: java
+    rootDir: backend
+    plan: free
+    buildCommand: ./gradlew build -x test
+    startCommand: ./gradlew bootRun
+    envVars:
+      - key: JAVA_VERSION
+        value: "17"
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: imageflow-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: imageflow-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: imageflow-db
+          property: password
+      - key: APP_PUBLIC_BASE_URL
+        sync: false
+      - key: APP_STORAGE_ROOT
+        value: /tmp/imageflow-storage
+      - key: APP_PROCESSING_MODE
+        value: sync
+      - key: APP_QUEUE_ENABLED
+        value: "false"
+
+databases:
+  - name: imageflow-db
+    plan: free

@@ -9,8 +9,12 @@ public record ImageJobQueueMessage(
         String sourceImageUrl,
         String prompt,
         Integer targetWidth,
+        Integer targetHeight,
         int quality,
         String outputFormat,
+        String aspectRatio,
+        String watermarkText,
+        String cropMode,
         String outputObjectKey,
         String outputFilePath,
         String resultImageUrl

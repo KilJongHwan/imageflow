@@ -40,11 +40,14 @@ public class ImageJobController {
     @ResponseStatus(HttpStatus.CREATED)
     public ImageJobResponse upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(required = false) Integer targetWidth,
+            @RequestParam(required = false) Integer width,
+            @RequestParam(required = false) Integer height,
             @RequestParam(required = false) Integer quality,
-            @RequestParam(required = false) String outputFormat
+            @RequestParam(required = false) String aspectRatio,
+            @RequestParam(required = false) String watermarkText,
+            @RequestParam(required = false) String cropMode
     ) {
-        return imageJobService.createGuestUploadJob(file, targetWidth, quality, outputFormat);
+        return imageJobService.createGuestUploadJob(file, width, height, quality, aspectRatio, watermarkText, cropMode);
     }
 
     @GetMapping("/{imageJobId}")

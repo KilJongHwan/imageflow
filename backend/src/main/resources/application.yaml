@@ -25,8 +25,10 @@ server:
 
 app:
   public-base-url: http://localhost:8080
+  processing:
+    mode: sync
   queue:
-    enabled: true
+    enabled: false
     image-jobs-key: imageflow:image-jobs
   storage:
     root: ../storage

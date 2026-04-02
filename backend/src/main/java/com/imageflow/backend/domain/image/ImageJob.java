@@ -44,11 +44,23 @@ public class ImageJob extends BaseTimeEntity {
     @Column(name = "target_width")
     private Integer targetWidth;
 
+    @Column(name = "target_height")
+    private Integer targetHeight;
+
     @Column(nullable = false)
     private int quality;
 
     @Column(name = "output_format", nullable = false, length = 20)
     private String outputFormat;
+
+    @Column(name = "aspect_ratio", length = 20)
+    private String aspectRatio;
+
+    @Column(name = "watermark_text", length = 120)
+    private String watermarkText;
+
+    @Column(name = "crop_mode", length = 20)
+    private String cropMode;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -131,6 +143,14 @@ public class ImageJob extends BaseTimeEntity {
         this.targetWidth = targetWidth;
     }
 
+    public Integer getTargetHeight() {
+        return targetHeight;
+    }
+
+    public void setTargetHeight(Integer targetHeight) {
+        this.targetHeight = targetHeight;
+    }
+
     public int getQuality() {
         return quality;
     }
@@ -145,6 +165,30 @@ public class ImageJob extends BaseTimeEntity {
 
     public void setOutputFormat(String outputFormat) {
         this.outputFormat = outputFormat;
+    }
+
+    public String getAspectRatio() {
+        return aspectRatio;
+    }
+
+    public void setAspectRatio(String aspectRatio) {
+        this.aspectRatio = aspectRatio;
+    }
+
+    public String getWatermarkText() {
+        return watermarkText;
+    }
+
+    public void setWatermarkText(String watermarkText) {
+        this.watermarkText = watermarkText;
+    }
+
+    public String getCropMode() {
+        return cropMode;
+    }
+
+    public void setCropMode(String cropMode) {
+        this.cropMode = cropMode;
     }
 
     public ImageJobStatus getStatus() {

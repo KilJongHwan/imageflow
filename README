@@ -120,3 +120,4 @@ Windows PowerShell:
 - Some experimental domain folders currently exist directly under `backend/`; the actual compiled Java source root is `backend/src/main/java`.
 - As the project grows, consider promoting the repository into a true multi-module build if `frontend` and `image-agent` become active codebases.
 - User-first product planning is documented in `docs/user-mode-plan.md`.
+- Demo deployment notes are documented in `DEPLOY.md`.
