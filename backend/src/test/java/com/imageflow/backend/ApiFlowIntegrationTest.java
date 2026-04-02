@@ -46,13 +46,19 @@ class ApiFlowIntegrationTest {
                                   "userId": "%s",
                                   "prompt": "Turn this product shot into a clean banner",
                                   "sourceImageUrl": "https://example.com/source.png",
-                                  "creditsToUse": 3
+                                  "creditsToUse": 3,
+                                  "targetWidth": 400,
+                                  "quality": 70,
+                                  "outputFormat": "webp"
                                 }
                                 """.formatted(userId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").value(userId))
                 .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.creditsUsed").value(3))
+                .andExpect(jsonPath("$.targetWidth").value(400))
+                .andExpect(jsonPath("$.quality").value(70))
+                .andExpect(jsonPath("$.outputFormat").value("webp"))
                 .andReturn();
 
         String imageJobId = JsonTestUtils.read(createImageJobResult.getResponse().getContentAsString(), "id");

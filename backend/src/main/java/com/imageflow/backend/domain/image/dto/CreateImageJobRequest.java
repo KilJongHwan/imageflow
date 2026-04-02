@@ -6,6 +6,9 @@ public record CreateImageJobRequest(
         UUID userId,
         String prompt,
         String sourceImageUrl,
-        Integer creditsToUse
+        Integer creditsToUse,
+        Integer targetWidth,
+        Integer quality,
+        String outputFormat
 ) {
 }

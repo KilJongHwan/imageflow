@@ -35,8 +35,20 @@ public class ImageJob extends BaseTimeEntity {
     @Column(name = "result_image_url", length = 500)
     private String resultImageUrl;
 
+    @Column(name = "output_object_key", length = 255)
+    private String outputObjectKey;
+
     @Column(nullable = false, length = 1000)
     private String prompt;
+
+    @Column(name = "target_width")
+    private Integer targetWidth;
+
+    @Column(nullable = false)
+    private int quality;
+
+    @Column(name = "output_format", nullable = false, length = 20)
+    private String outputFormat;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -56,6 +68,8 @@ public class ImageJob extends BaseTimeEntity {
         this.prompt = prompt;
         this.creditsUsed = creditsUsed;
         this.status = ImageJobStatus.QUEUED;
+        this.quality = 80;
+        this.outputFormat = "webp";
     }
 
     public void startProcessing() {
@@ -66,6 +80,13 @@ public class ImageJob extends BaseTimeEntity {
     public void markSuccess(String resultImageUrl) {
         this.status = ImageJobStatus.SUCCEEDED;
         this.resultImageUrl = resultImageUrl;
+        this.failureReason = null;
+    }
+
+    public void markSuccess(String resultImageUrl, String outputObjectKey) {
+        this.status = ImageJobStatus.SUCCEEDED;
+        this.resultImageUrl = resultImageUrl;
+        this.outputObjectKey = outputObjectKey;
         this.failureReason = null;
     }
 
@@ -94,8 +115,36 @@ public class ImageJob extends BaseTimeEntity {
         return resultImageUrl;
     }
 
+    public String getOutputObjectKey() {
+        return outputObjectKey;
+    }
+
     public String getPrompt() {
         return prompt;
+    }
+
+    public Integer getTargetWidth() {
+        return targetWidth;
+    }
+
+    public void setTargetWidth(Integer targetWidth) {
+        this.targetWidth = targetWidth;
+    }
+
+    public int getQuality() {
+        return quality;
+    }
+
+    public void setQuality(int quality) {
+        this.quality = quality;
+    }
+
+    public String getOutputFormat() {
+        return outputFormat;
+    }
+
+    public void setOutputFormat(String outputFormat) {
+        this.outputFormat = outputFormat;
     }
 
     public ImageJobStatus getStatus() {

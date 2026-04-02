@@ -12,10 +12,10 @@ This frontend now uses React with Vite.
 
 ## What it does
 
-- checks backend health
-- creates a user
-- creates an image job
-- fetches an image job by id
+- uploads a single image
+- sends an optimization job to the backend
+- polls job status
+- shows the optimized result image when ready
 
 ## Install
 

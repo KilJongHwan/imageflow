@@ -73,6 +73,12 @@ Then open:
 http://localhost:5173
 ```
 
+The first screen is intentionally simple:
+- upload one image
+- request optimization
+- poll job status
+- show optimized result
+
 The backend uses:
 - application port: `8080`
 - PostgreSQL: `localhost:5432`
@@ -113,3 +119,4 @@ Windows PowerShell:
 - The production datasource is configured in `backend/src/main/resources/application.yaml`.
 - Some experimental domain folders currently exist directly under `backend/`; the actual compiled Java source root is `backend/src/main/java`.
 - As the project grows, consider promoting the repository into a true multi-module build if `frontend` and `image-agent` become active codebases.
+- User-first product planning is documented in `docs/user-mode-plan.md`.

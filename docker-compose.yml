@@ -17,5 +17,17 @@ services:
     ports:
       - "6379:6379"
 
+  image-agent:
+    build:
+      context: ./image-agent
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      IMAGE_JOB_QUEUE_KEY: imageflow:image-jobs
+      BACKEND_BASE_URL: http://host.docker.internal:8080
+      R2_PUBLIC_BASE_URL: https://example-r2-public-url.invalid
+    depends_on:
+      - redis
+
 volumes:
   postgres_data:

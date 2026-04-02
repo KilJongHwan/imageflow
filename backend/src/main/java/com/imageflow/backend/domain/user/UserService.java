@@ -32,6 +32,11 @@ public class UserService {
         return UserResponse.from(userRepository.save(user));
     }
 
+    public User getOrCreateGuestUser() {
+        return userRepository.findByEmail("guest@imageflow.local")
+                .orElseGet(() -> userRepository.save(new User("guest@imageflow.local", UserPlan.FREE, 1000)));
+    }
+
     private String normalizeEmail(String email) {
         if (email == null || email.isBlank()) {
             throw new BadRequestException("email is required");
