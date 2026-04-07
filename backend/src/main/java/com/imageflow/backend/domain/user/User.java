@@ -34,6 +34,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "api_key", nullable = false, unique = true, length = 64)
     private String apiKey;
 
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserPlan plan;
@@ -52,6 +55,13 @@ public class User extends BaseTimeEntity {
 
     public User(String email, UserPlan plan, int creditBalance) {
         this.email = email;
+        this.plan = plan;
+        this.creditBalance = creditBalance;
+    }
+
+    public User(String email, String passwordHash, UserPlan plan, int creditBalance) {
+        this.email = email;
+        this.passwordHash = passwordHash;
         this.plan = plan;
         this.creditBalance = creditBalance;
     }
@@ -93,6 +103,10 @@ public class User extends BaseTimeEntity {
 
     public String getApiKey() {
         return apiKey;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
     public UserPlan getPlan() {

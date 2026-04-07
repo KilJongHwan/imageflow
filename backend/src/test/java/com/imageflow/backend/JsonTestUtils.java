@@ -12,6 +12,18 @@ public final class JsonTestUtils {
 
     public static String read(String json, String fieldName) throws Exception {
         JsonNode node = OBJECT_MAPPER.readTree(json);
-        return node.get(fieldName).asText();
+        JsonNode current = node;
+
+        for (String segment : fieldName.split("\\.")) {
+            if (segment.contains("[") && segment.endsWith("]")) {
+                String property = segment.substring(0, segment.indexOf('['));
+                int index = Integer.parseInt(segment.substring(segment.indexOf('[') + 1, segment.length() - 1));
+                current = current.get(property).get(index);
+            } else {
+                current = current.get(segment);
+            }
+        }
+
+        return current.asText();
     }
 }

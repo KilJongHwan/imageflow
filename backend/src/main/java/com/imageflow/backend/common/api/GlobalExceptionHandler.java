@@ -13,6 +13,7 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 
 import com.imageflow.backend.common.exception.BadRequestException;
 import com.imageflow.backend.common.exception.NotFoundException;
+import com.imageflow.backend.common.exception.UnauthorizedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,6 +22,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleNotFound(NotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiErrorResponse("NOT_FOUND", exception.getMessage(), Instant.now()));
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnauthorized(UnauthorizedException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiErrorResponse("UNAUTHORIZED", exception.getMessage(), Instant.now()));
     }
 
     @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class, IllegalStateException.class})

@@ -38,6 +38,8 @@ def main():
                     "status": "SUCCEEDED",
                     "resultImageUrl": result["resultImageUrl"],
                     "outputObjectKey": result["outputObjectKey"],
+                    "sourceFileSizeBytes": result["sourceFileSizeBytes"],
+                    "resultFileSizeBytes": result["resultFileSizeBytes"],
                 },
             )
             print(f"[worker] job succeeded {job['jobId']}")
@@ -83,6 +85,8 @@ def optimize_image(job):
     return {
         "outputObjectKey": object_key,
         "resultImageUrl": result_image_url or f"{R2_PUBLIC_BASE_URL.rstrip('/')}/{object_key}",
+        "sourceFileSizeBytes": source_size_bytes(job),
+        "resultFileSizeBytes": len(output_buffer.getvalue()),
     }
 
 
@@ -105,6 +109,9 @@ def apply_crop_mode(image, job):
     crop_mode = (job.get("cropMode") or "fit").strip().lower()
     aspect_ratio = (job.get("aspectRatio") or "original").strip().lower()
 
+    if crop_mode == "manual":
+        return apply_manual_crop(image, job)
+
     if crop_mode != "center-crop" or aspect_ratio == "original":
         return image
 
@@ -120,6 +127,22 @@ def apply_crop_mode(image, job):
     new_height = int(image.width / target_ratio)
     top = (image.height - new_height) // 2
     return image.crop((0, top, image.width, top + new_height))
+
+
+def apply_manual_crop(image, job):
+    crop_x = int(job.get("cropX") or 0)
+    crop_y = int(job.get("cropY") or 0)
+    crop_width = int(job.get("cropWidth") or 0)
+    crop_height = int(job.get("cropHeight") or 0)
+
+    if crop_width <= 0 or crop_height <= 0:
+        raise ValueError("manual crop requires cropWidth and cropHeight")
+    if crop_x < 0 or crop_y < 0:
+        raise ValueError("manual crop requires non-negative cropX and cropY")
+    if crop_x + crop_width > image.width or crop_y + crop_height > image.height:
+        raise ValueError("manual crop must stay within the source image bounds")
+
+    return image.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
 
 
 def apply_watermark(image, watermark_text):
@@ -216,6 +239,15 @@ def update_job(job_id, payload):
         timeout=15,
     )
     response.raise_for_status()
+
+
+def source_size_bytes(job):
+    source_file_path = job.get("sourceFilePath")
+    if source_file_path:
+        source_path = Path(source_file_path)
+        if source_path.exists():
+            return source_path.stat().st_size
+    return None
 
 
 if __name__ == "__main__":

@@ -25,6 +25,10 @@ server:
 
 app:
   public-base-url: http://localhost:8080
+  auth:
+    jwt:
+      secret: change-this-demo-jwt-secret-key-at-least-32chars
+      expiration-seconds: 604800
   processing:
     mode: sync
   queue:
@@ -32,3 +36,5 @@ app:
     image-jobs-key: imageflow:image-jobs
   storage:
     root: ../storage
+  upload:
+    max-batch-size: 10

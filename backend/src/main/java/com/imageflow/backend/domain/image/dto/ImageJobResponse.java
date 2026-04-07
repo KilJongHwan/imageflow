@@ -21,11 +21,31 @@ public record ImageJobResponse(
         String aspectRatio,
         String watermarkText,
         String cropMode,
+        Integer cropX,
+        Integer cropY,
+        Integer cropWidth,
+        Integer cropHeight,
+        Long sourceFileSizeBytes,
+        Long resultFileSizeBytes,
+        Long savedBytes,
+        Double reductionRate,
         String failureReason,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public static ImageJobResponse from(ImageJob imageJob) {
+        Long sourceFileSizeBytes = imageJob.getSourceFileSizeBytes();
+        Long resultFileSizeBytes = imageJob.getResultFileSizeBytes();
+        Long savedBytes = null;
+        Double reductionRate = null;
+
+        if (sourceFileSizeBytes != null && resultFileSizeBytes != null) {
+            savedBytes = sourceFileSizeBytes - resultFileSizeBytes;
+            if (sourceFileSizeBytes > 0) {
+                reductionRate = (double) savedBytes / sourceFileSizeBytes;
+            }
+        }
+
         return new ImageJobResponse(
                 imageJob.getId(),
                 imageJob.getUser().getId(),
@@ -42,6 +62,14 @@ public record ImageJobResponse(
                 imageJob.getAspectRatio(),
                 imageJob.getWatermarkText(),
                 imageJob.getCropMode(),
+                imageJob.getCropX(),
+                imageJob.getCropY(),
+                imageJob.getCropWidth(),
+                imageJob.getCropHeight(),
+                sourceFileSizeBytes,
+                resultFileSizeBytes,
+                savedBytes,
+                reductionRate,
                 imageJob.getFailureReason(),
                 imageJob.getCreatedAt(),
                 imageJob.getUpdatedAt()

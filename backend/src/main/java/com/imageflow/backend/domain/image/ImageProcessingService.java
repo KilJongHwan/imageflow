@@ -23,7 +23,9 @@ public class ImageProcessingService {
 
     public record ProcessedImageResult(
             String resultImageUrl,
-            String outputObjectKey
+            String outputObjectKey,
+            Long sourceFileSizeBytes,
+            Long resultFileSizeBytes
     ) {
     }
 
@@ -39,7 +41,9 @@ public class ImageProcessingService {
             Files.createDirectories(outputPath.getParent());
             ImageIO.write(convertIfNeeded(image, format), format, outputPath.toFile());
 
-            return new ProcessedImageResult(message.resultImageUrl(), message.outputObjectKey());
+            Long sourceFileSizeBytes = message.sourceFilePath() == null ? null : Files.size(Path.of(message.sourceFilePath()));
+            Long resultFileSizeBytes = Files.size(outputPath);
+            return new ProcessedImageResult(message.resultImageUrl(), message.outputObjectKey(), sourceFileSizeBytes, resultFileSizeBytes);
         } catch (IOException exception) {
             throw new IllegalStateException("failed to process image", exception);
         }
@@ -93,6 +97,10 @@ public class ImageProcessingService {
     }
 
     private BufferedImage applyCrop(BufferedImage image, ImageJobQueueMessage message) {
+        if ("manual".equals(message.cropMode())) {
+            return applyManualCrop(image, message);
+        }
+
         if (!"center-crop".equals(message.cropMode()) || message.aspectRatio() == null || "original".equals(message.aspectRatio())) {
             return image;
         }
@@ -116,6 +124,25 @@ public class ImageProcessingService {
         int newHeight = (int) Math.round(image.getWidth() / targetRatio);
         int y = (image.getHeight() - newHeight) / 2;
         return image.getSubimage(0, y, image.getWidth(), newHeight);
+    }
+
+    private BufferedImage applyManualCrop(BufferedImage image, ImageJobQueueMessage message) {
+        Integer cropX = message.cropX();
+        Integer cropY = message.cropY();
+        Integer cropWidth = message.cropWidth();
+        Integer cropHeight = message.cropHeight();
+
+        if (cropX == null || cropY == null || cropWidth == null || cropHeight == null) {
+            throw new BadRequestException("manual crop requires cropX, cropY, cropWidth and cropHeight");
+        }
+        if (cropX < 0 || cropY < 0 || cropWidth <= 0 || cropHeight <= 0) {
+            throw new BadRequestException("manual crop values are invalid");
+        }
+        if (cropX + cropWidth > image.getWidth() || cropY + cropHeight > image.getHeight()) {
+            throw new BadRequestException("manual crop must stay within the source image bounds");
+        }
+
+        return image.getSubimage(cropX, cropY, cropWidth, cropHeight);
     }
 
     private BufferedImage applyWatermark(BufferedImage image, String watermarkText) {

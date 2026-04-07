@@ -1,29 +1,106 @@
 # ImageFlow
 
-ImageFlow is an image-processing SaaS project scaffold with a Spring Boot backend and placeholders for a frontend app and image-processing agent.
+ImageFlow is a problem-solving portfolio project built around one practical issue:
 
-## Structure
+`How can a commerce service reduce traffic and storage cost caused by large image uploads while still giving sellers a fast and usable workflow?`
+
+The project focuses on commerce-heavy image environments such as:
+
+- Naver Smart Store
+- Coupang
+- Kurly
+- other product-listing and catalog channels
+
+Instead of treating image optimization as a generic utility, ImageFlow frames it as an operational cost and workflow problem.
+
+## Problem Statement
+
+In commerce services, large product images create repeated cost and performance problems:
+
+- upload and delivery traffic increases
+- storage usage grows quickly
+- repeated manual cropping and resizing wastes operator time
+- marketplace-ready asset preparation becomes inconsistent
+
+This project approaches the problem from both directions:
+
+- system side: reduce unnecessary image payload size and repeated processing cost
+- user side: make sellers and operators prepare optimized assets faster
+
+## Solution Summary
+
+ImageFlow combines:
+
+- authenticated upload and job ownership
+- manual crop selection in the UI
+- resize / quality / watermark optimization
+- single and batch image processing
+- ZIP download for processed outputs
+- backend and worker separation for async scaling
+
+The intent is to show both product thinking and system design:
+
+- user-facing workflow design
+- cost-aware image pipeline design
+- architecture prepared for higher traffic and larger volumes
+
+## Product Direction
+
+ImageFlow should help a seller or MD do this quickly:
+
+1. sign in
+2. upload product images
+3. crop the exact visible area in the UI
+4. resize and optimize for marketplace use
+5. add watermark or brand mark when needed
+6. download the final asset
+7. later review processed jobs
+
+The service should feel less like a demo tool and more like a practical image workspace for repetitive commerce operations.
+
+## Portfolio Framing
+
+Recommended project title:
+
+`대용량 이미지 업로드 시 트래픽 및 스토리지 비용 증가 문제 해결을 위한 이미지 최적화 시스템 개발`
+
+This project is strongest when presented as:
+
+- a commerce image workflow optimization service
+- a traffic and storage cost reduction problem
+- an operational productivity tool for sellers and commerce teams
+
+## Current Repo Structure
 
 ```text
 imageflow/
 |- backend/       Spring Boot API server
-|- frontend/      reserved for the client application
-|- image-agent/   reserved for async image processing workers
+|- frontend/      React + Vite client
+|- image-agent/   Python worker for async processing
+|- docs/          product planning and service roadmap
+|- DEPLOY.md
 `- docker-compose.yml
 ```
 
 ## Current Status
 
-- `backend` is the only runnable service right now.
-- `frontend` and `image-agent` contain starter notes only.
-- PostgreSQL and Redis can be started through Docker Compose.
+The repository already supports these basics:
 
-## Prerequisites
+- JWT-based sign up and login
+- authenticated upload flow
+- image optimization request and status polling
+- watermark support
+- center crop support
+- manual crop coordinates in backend
+- crop selection UI on the uploaded image in frontend
+- batch upload
+- ZIP download for processed outputs
 
-- Java 17+ installed locally
-- Docker Desktop
+What it does not yet fully provide is a true service-grade seller workflow such as batch jobs, channel presets, history-first dashboard UX, and marketplace-aware export flows.
 
-## Run Infrastructure
+## Local Run
+
+### Infrastructure
 
 From the project root:
 
@@ -36,14 +113,16 @@ Stop and remove volumes:
 ```bash
 docker-compose down -v
 ```
-Remove all
+
+Remove images too:
+
 ```bash
 docker-compose down -v --rmi all
 ```
 
-## Run Backend
+### Backend
 
-From the `backend` directory:
+From `backend/`:
 
 ```bash
 ./gradlew bootRun
@@ -55,54 +134,30 @@ Windows PowerShell:
 .\gradlew.bat bootRun
 ```
 
-## Run Frontend
+### Frontend
 
-The frontend uses React + Vite in `frontend/`.
-
-PowerShell:
+From `frontend/`:
 
 ```powershell
-cd frontend
 npm install
 npm run dev
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:5173
 ```
 
-The first screen is intentionally simple:
-- upload one image
-- request optimization
-- poll job status
-- show optimized result
-
-The backend uses:
-- application port: `8080`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-
-Quick check:
+### Health Check
 
 ```text
 GET http://localhost:8080/api/health
 ```
 
-Expected response shape:
-
-```json
-{
-  "status": "ok",
-  "service": "imageflow-backend",
-  "timestamp": "2026-03-26T00:00:00Z"
-}
-```
-
 ## Test
 
-Backend tests use an in-memory H2 database, so Docker is not required for `test`.
+Backend tests use in-memory H2, so Docker is not required for tests.
 
 ```bash
 ./gradlew test
@@ -114,10 +169,19 @@ Windows PowerShell:
 .\gradlew.bat test
 ```
 
-## Notes
+## Service Planning Docs
 
-- The production datasource is configured in `backend/src/main/resources/application.yaml`.
-- Some experimental domain folders currently exist directly under `backend/`; the actual compiled Java source root is `backend/src/main/java`.
-- As the project grows, consider promoting the repository into a true multi-module build if `frontend` and `image-agent` become active codebases.
-- User-first product planning is documented in `docs/user-mode-plan.md`.
-- Demo deployment notes are documented in `DEPLOY.md`.
+- seller service roadmap: `docs/commerce-seller-roadmap.md`
+- portfolio problem-solution summary: `docs/portfolio-case-study.md`
+- previous user-first planning: `docs/user-mode-plan.md`
+- deployment notes: `DEPLOY.md`
+
+## Immediate Next Goal
+
+The next meaningful step is to turn the current prototype into a seller-facing MVP:
+
+- marketplace preset exports
+- better crop and preview UX
+- job history dashboard
+- batch upload and ZIP download
+- storage and worker flow ready for real usage

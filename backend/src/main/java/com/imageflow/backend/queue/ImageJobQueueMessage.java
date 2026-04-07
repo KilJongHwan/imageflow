@@ -15,6 +15,10 @@ public record ImageJobQueueMessage(
         String aspectRatio,
         String watermarkText,
         String cropMode,
+        Integer cropX,
+        Integer cropY,
+        Integer cropWidth,
+        Integer cropHeight,
         String outputObjectKey,
         String outputFilePath,
         String resultImageUrl

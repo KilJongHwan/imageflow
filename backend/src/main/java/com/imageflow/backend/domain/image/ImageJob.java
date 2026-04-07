@@ -62,6 +62,24 @@ public class ImageJob extends BaseTimeEntity {
     @Column(name = "crop_mode", length = 20)
     private String cropMode;
 
+    @Column(name = "crop_x")
+    private Integer cropX;
+
+    @Column(name = "crop_y")
+    private Integer cropY;
+
+    @Column(name = "crop_width")
+    private Integer cropWidth;
+
+    @Column(name = "crop_height")
+    private Integer cropHeight;
+
+    @Column(name = "source_file_size_bytes")
+    private Long sourceFileSizeBytes;
+
+    @Column(name = "result_file_size_bytes")
+    private Long resultFileSizeBytes;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ImageJobStatus status;
@@ -99,6 +117,15 @@ public class ImageJob extends BaseTimeEntity {
         this.status = ImageJobStatus.SUCCEEDED;
         this.resultImageUrl = resultImageUrl;
         this.outputObjectKey = outputObjectKey;
+        this.failureReason = null;
+    }
+
+    public void markSuccess(String resultImageUrl, String outputObjectKey, Long sourceFileSizeBytes, Long resultFileSizeBytes) {
+        this.status = ImageJobStatus.SUCCEEDED;
+        this.resultImageUrl = resultImageUrl;
+        this.outputObjectKey = outputObjectKey;
+        this.sourceFileSizeBytes = sourceFileSizeBytes;
+        this.resultFileSizeBytes = resultFileSizeBytes;
         this.failureReason = null;
     }
 
@@ -195,8 +222,56 @@ public class ImageJob extends BaseTimeEntity {
         return status;
     }
 
+    public Integer getCropX() {
+        return cropX;
+    }
+
+    public void setCropX(Integer cropX) {
+        this.cropX = cropX;
+    }
+
+    public Integer getCropY() {
+        return cropY;
+    }
+
+    public void setCropY(Integer cropY) {
+        this.cropY = cropY;
+    }
+
+    public Integer getCropWidth() {
+        return cropWidth;
+    }
+
+    public void setCropWidth(Integer cropWidth) {
+        this.cropWidth = cropWidth;
+    }
+
+    public Integer getCropHeight() {
+        return cropHeight;
+    }
+
+    public void setCropHeight(Integer cropHeight) {
+        this.cropHeight = cropHeight;
+    }
+
     public int getCreditsUsed() {
         return creditsUsed;
+    }
+
+    public Long getSourceFileSizeBytes() {
+        return sourceFileSizeBytes;
+    }
+
+    public void setSourceFileSizeBytes(Long sourceFileSizeBytes) {
+        this.sourceFileSizeBytes = sourceFileSizeBytes;
+    }
+
+    public Long getResultFileSizeBytes() {
+        return resultFileSizeBytes;
+    }
+
+    public void setResultFileSizeBytes(Long resultFileSizeBytes) {
+        this.resultFileSizeBytes = resultFileSizeBytes;
     }
 
     public String getFailureReason() {
