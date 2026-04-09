@@ -2,10 +2,10 @@ services:
   - type: web
     name: imageflow-backend
     runtime: docker
-    rootDir: backend
+    rootDir: .
     plan: free
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
     envVars:
       - key: JAVA_VERSION
         value: "17"
