@@ -1,96 +1,85 @@
-import { useState } from "react";
+import { Alert, Button, Form, Input, Segmented, Space, Typography } from "antd";
 
-const initialState = {
-  email: "",
-  password: ""
-};
+import { PanelCard } from "./ui/PanelCard";
+
+const { Paragraph, Text } = Typography;
 
 export function AuthPanel({ baseUrl, error, onBaseUrlChange, onSubmit }) {
-  const [mode, setMode] = useState("login");
-  const [form, setForm] = useState(initialState);
+  const [form] = Form.useForm();
+  const mode = Form.useWatch("mode", form) || "login";
 
-  function updateField(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    onSubmit(mode, form);
+  function handleFinish(values) {
+    onSubmit(values.mode, {
+      email: values.email,
+      password: values.password
+    });
   }
 
   return (
-    <section className="control-panel auth-panel">
-      <div className="panel-head">
-        <div>
-          <div className="section-kicker">Workspace Access</div>
-          <h2>Open the seller console</h2>
-          <p>Authenticate first, then upload product images into a private optimization workspace.</p>
-        </div>
-      </div>
+    <PanelCard
+      className="workspace-card"
+      title="Workspace Access"
+      extra={<Text type="secondary">JWT protected upload workspace</Text>}
+    >
+      <Space direction="vertical" size={18} className="full-width">
+        <Paragraph className="panel-description">
+          먼저 인증을 통과해야 업로드 워크스페이스가 열립니다. 익명 업로드를 막고, 작업 이력과 다운로드를 계정 기준으로 유지합니다.
+        </Paragraph>
 
-      <div className="auth-toggle">
-        <button
-          className={mode === "login" ? "toggle-button active" : "toggle-button"}
-          type="button"
-          onClick={() => setMode("login")}
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ mode: "login", email: "", password: "", baseUrl }}
+          onFinish={handleFinish}
         >
-          Login
-        </button>
-        <button
-          className={mode === "signup" ? "toggle-button active" : "toggle-button"}
-          type="button"
-          onClick={() => setMode("signup")}
-        >
-          Sign Up
-        </button>
-      </div>
+          <Form.Item name="mode" label="Access Mode">
+            <Segmented
+              block
+              options={[
+                { label: "Login", value: "login" },
+                { label: "Sign Up", value: "signup" }
+              ]}
+            />
+          </Form.Item>
 
-      <form className="control-form" onSubmit={handleSubmit}>
-        <label className="field">
-          <span>Backend URL</span>
-          <input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} />
-        </label>
+          <Form.Item label="Backend URL">
+            <Input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} />
+          </Form.Item>
 
-        <label className="field auth-field">
-          <span>Email</span>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(event) => updateField("email", event.target.value)}
-            placeholder="you@brand.com"
-          />
-        </label>
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[{ required: true, message: "이메일을 입력해주세요." }]}
+          >
+            <Input placeholder="brand@store.com" />
+          </Form.Item>
 
-        <label className="field auth-field">
-          <span>Password</span>
-          <input
-            type="password"
-            value={form.password}
-            onChange={(event) => updateField("password", event.target.value)}
-            placeholder="At least 8 characters"
-          />
-        </label>
+          <Form.Item
+            name="password"
+            label="Password"
+            rules={[{ required: true, message: "비밀번호를 입력해주세요." }]}
+          >
+            <Input.Password placeholder="8자 이상 권장" />
+          </Form.Item>
 
-        <button className="primary-button" type="submit">
-          {mode === "login" ? "Login to Continue" : "Create Account"}
-        </button>
-        <div className="auth-footnote">
-          <div className="auth-mini-card">
+          <Button type="primary" htmlType="submit" size="large" block>
+            {mode === "login" ? "Open Seller Workspace" : "Create Seller Account"}
+          </Button>
+        </Form>
+
+        <div className="auth-benefit-grid">
+          <div className="benefit-card">
             <strong>Protected uploads</strong>
-            <span>Anonymous traffic is blocked so image processing stays tied to a signed-in account.</span>
+            <span>업로드와 결과 다운로드가 로그인 세션에 묶입니다.</span>
           </div>
-          <div className="auth-mini-card">
+          <div className="benefit-card">
             <strong>Immediate testing</strong>
-            <span>New accounts start with demo credits so the full upload flow can be tried right away.</span>
+            <span>회원가입 직후 데모 크레딧으로 흐름을 바로 확인할 수 있습니다.</span>
           </div>
         </div>
-        <p className="status-copy">
-          {mode === "login"
-            ? "Existing account holders can jump straight into optimization."
-            : "New accounts start with demo credits so you can test the flow immediately."}
-        </p>
-        {error ? <p className="error-copy">{error}</p> : null}
-      </form>
-    </section>
+
+        {error ? <Alert type="error" showIcon message={error} /> : null}
+      </Space>
+    </PanelCard>
   );
 }

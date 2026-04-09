@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ConfigProvider, theme } from "antd";
 
 import { AuthPanel } from "./components/AuthPanel";
 import { HeroSection } from "./components/HeroSection";
@@ -9,6 +10,7 @@ const POLL_INTERVAL_MS = 2500;
 const TOKEN_STORAGE_KEY = "imageflow.jwt";
 
 const initialOptions = {
+  presetId: "kurly",
   width: "1600",
   height: "",
   quality: "82",
@@ -29,6 +31,8 @@ export default function App() {
   const [options, setOptions] = useState(initialOptions);
   const [statusMessage, setStatusMessage] = useState("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
   const [jobs, setJobs] = useState([]);
+  const [recentJobs, setRecentJobs] = useState([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
   const pollTimerRef = useRef(null);
@@ -44,6 +48,8 @@ export default function App() {
   useEffect(() => {
     if (!token) {
       setUser(null);
+      setRecentJobs([]);
+      setSelectedJobId("");
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       return;
     }
@@ -51,6 +57,15 @@ export default function App() {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
     restoreSession(token);
   }, [token]);
+
+  useEffect(() => {
+    if (!user) {
+      setRecentJobs([]);
+      return;
+    }
+
+    loadRecentJobs();
+  }, [user]);
 
   useEffect(() => {
     function hasFiles(event) {
@@ -159,6 +174,28 @@ export default function App() {
     }
   }
 
+  function handleRemoveFile(fileToRemove) {
+    setFiles((currentFiles) =>
+      currentFiles.filter(
+        (file) =>
+          !(file.name === fileToRemove.name
+            && file.size === fileToRemove.size
+            && file.lastModified === fileToRemove.lastModified)
+      )
+    );
+  }
+
+  function handleClearFiles() {
+    setFiles([]);
+    setOptions((current) => ({
+      ...current,
+      cropX: "",
+      cropY: "",
+      cropWidth: "",
+      cropHeight: ""
+    }));
+  }
+
   async function request(path, requestOptions = {}) {
     const headers = new Headers(requestOptions.headers || {});
     if (token) {
@@ -203,6 +240,31 @@ export default function App() {
     }
   }
 
+  async function loadRecentJobs() {
+    try {
+      const response = await request("/api/image-jobs");
+      setRecentJobs(response);
+      setSelectedJobId((currentSelectedId) => {
+        if (currentSelectedId && response.some((job) => job.id === currentSelectedId)) {
+          return currentSelectedId;
+        }
+        return response[0]?.id || "";
+      });
+    } catch (_error) {
+      // Keep the workspace usable even if history refresh fails.
+    }
+  }
+
+  function mergeJobsIntoHistory(nextJobs) {
+    setRecentJobs((currentJobs) => {
+      const byId = new Map();
+      [...nextJobs, ...currentJobs].forEach((job) => {
+        byId.set(job.id, job);
+      });
+      return Array.from(byId.values()).sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+    });
+  }
+
   async function handleAuthSubmit(mode, credentials) {
     setAuthError("");
     setError("");
@@ -228,7 +290,9 @@ export default function App() {
     setToken("");
     setUser(null);
     setJobs([]);
+    setRecentJobs([]);
     setFiles([]);
+    setSelectedJobId("");
     setPageDropActive(false);
     setError("");
     setAuthError("");
@@ -236,7 +300,9 @@ export default function App() {
   }
 
   async function handleSubmit(event) {
-    event.preventDefault();
+    if (event?.preventDefault) {
+      event.preventDefault();
+    }
 
     if (!files.length) {
       setError("먼저 최적화할 이미지를 선택해주세요.");
@@ -276,6 +342,8 @@ export default function App() {
       });
       const nextJobs = Array.isArray(created.jobs) ? created.jobs : [created];
       setJobs(nextJobs);
+      setSelectedJobId(nextJobs[0]?.id || "");
+      mergeJobsIntoHistory(nextJobs);
       setStatusMessage(
         nextJobs.length > 1
           ? `${nextJobs.length}개 작업이 등록되었습니다. 결과를 확인하고 ZIP으로 다운로드할 수 있습니다.`
@@ -283,6 +351,8 @@ export default function App() {
       );
       if (nextJobs.length === 1) {
         pollJob(nextJobs[0].id);
+      } else {
+        loadRecentJobs();
       }
     } catch (submitError) {
       setError(submitError.message);
@@ -298,6 +368,8 @@ export default function App() {
     try {
       const latestJob = await request(`/api/image-jobs/${jobId}`);
       setJobs([latestJob]);
+       mergeJobsIntoHistory([latestJob]);
+      setSelectedJobId(latestJob.id);
 
       if (latestJob.status === "SUCCEEDED") {
         setStatusMessage("최적화가 완료되었습니다. 결과를 확인해보세요.");
@@ -349,44 +421,71 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      {pageDropActive ? (
-        <div className="page-drop-overlay">
-          <div className="page-drop-card">
-            <span className="section-kicker">Drop to Upload</span>
-            <strong>Release anywhere to add images or ZIP files</strong>
-            <p>ImageFlow will queue the dropped files into the current workspace immediately.</p>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.defaultAlgorithm,
+        token: {
+          colorPrimary: "#1677ff",
+          colorBgLayout: "#eef3f8",
+          colorBorderSecondary: "#d9e2ef",
+          borderRadius: 18,
+          fontFamily: "\"IBM Plex Sans\", sans-serif"
+        }
+      }}
+    >
+      <div className="app-shell">
+        {pageDropActive ? (
+          <div className="page-drop-overlay">
+            <div className="page-drop-card">
+              <span className="section-kicker">Drop to Upload</span>
+              <strong>Release anywhere to add images or ZIP files</strong>
+              <p>ImageFlow will queue the dropped files into the current workspace immediately.</p>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <HeroSection user={user} onLogout={handleLogout} />
+        <HeroSection user={user} onLogout={handleLogout} />
 
-      <main className="main-grid">
-        {user ? (
-          <OptimizationForm
-            baseUrl={baseUrl}
-            files={files}
-            options={options}
-            error={error}
-            statusMessage={statusMessage}
-            user={user}
-            onBaseUrlChange={setBaseUrl}
-            onFileChange={handleFilesSelected}
-            onOptionsChange={setOptions}
-            onSubmit={handleSubmit}
-          />
-        ) : (
-          <AuthPanel
-            baseUrl={baseUrl}
-            error={authError}
-            onBaseUrlChange={setBaseUrl}
-            onSubmit={handleAuthSubmit}
-          />
-        )}
+        <main className="main-grid">
+          {user ? (
+            <div className="content-column">
+              <OptimizationForm
+                baseUrl={baseUrl}
+                files={files}
+                options={options}
+                error={error}
+                statusMessage={statusMessage}
+                user={user}
+                onBaseUrlChange={setBaseUrl}
+                onFileChange={handleFilesSelected}
+                onFileRemove={handleRemoveFile}
+                onFilesClear={handleClearFiles}
+                onOptionsChange={setOptions}
+                onSubmit={handleSubmit}
+              />
+            </div>
+          ) : (
+            <div className="content-column">
+              <AuthPanel
+                baseUrl={baseUrl}
+                error={authError}
+                onBaseUrlChange={setBaseUrl}
+                onSubmit={handleAuthSubmit}
+              />
+            </div>
+          )}
 
-        <ResultPanel jobs={jobs} onDownloadBatch={handleDownloadBatch} />
-      </main>
-    </div>
+          <div className="content-column">
+            <ResultPanel
+              jobs={jobs}
+              recentJobs={recentJobs}
+              selectedJobId={selectedJobId}
+              onDownloadBatch={handleDownloadBatch}
+              onSelectJob={setSelectedJobId}
+            />
+          </div>
+        </main>
+      </div>
+    </ConfigProvider>
   );
 }

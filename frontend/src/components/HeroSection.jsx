@@ -1,57 +1,62 @@
+import { Button, Col, Row, Space, Statistic, Tag, Typography } from "antd";
+import { ThunderboltOutlined, ScissorOutlined, CloudUploadOutlined } from "@ant-design/icons";
+
+import { PanelCard } from "./ui/PanelCard";
+
+const { Paragraph, Title, Text } = Typography;
+
+function MetricTile({ title, value, suffix }) {
+  return (
+    <div className="metric-tile">
+      <Statistic title={title} value={value} suffix={suffix} />
+    </div>
+  );
+}
+
 export function HeroSection({ user, onLogout }) {
   return (
-    <section className="hero-panel">
-      <div className="hero-topbar">
-        <div className="eyebrow">ImageFlow Commerce Ops</div>
-        {user ? (
-          <div className="session-chip">
-            <span>{user.email}</span>
-            <button type="button" onClick={onLogout}>Log out</button>
+    <PanelCard
+      className="hero-card"
+      bodyStyle={{ padding: 28 }}
+      title={(
+        <Space size={12}>
+          <Tag color="gold">ImageFlow Commerce Ops</Tag>
+          <Text type="secondary">Seller image optimization workspace</Text>
+        </Space>
+      )}
+      extra={user ? (
+        <Space>
+          <Tag color="processing">{user.email}</Tag>
+          <Button type="default" onClick={onLogout}>Log out</Button>
+        </Space>
+      ) : null}
+    >
+      <Row gutter={[24, 24]} align="middle">
+        <Col xs={24} lg={15}>
+          <Space direction="vertical" size={18} className="hero-copy-block">
+            <Tag color="blue" className="hero-mini-tag">Commerce Image Workspace</Tag>
+            <Title level={1} className="hero-title">
+              상품 이미지 업로드, 규격 조정, 결과 검수를 한 화면에서 처리하는 운영 워크스페이스
+            </Title>
+            <Paragraph className="hero-description">
+              쿠팡, 네이버 스마트스토어, 컬리처럼 상품 이미지 작업이 반복되는 환경을 기준으로,
+              대량 업로드부터 크롭, 압축, 결과 다운로드와 절감률 확인까지 이어서 볼 수 있게 구성했습니다.
+            </Paragraph>
+            <Space wrap size={[10, 10]}>
+              <Tag icon={<CloudUploadOutlined />} color="default">Batch + ZIP Upload</Tag>
+              <Tag icon={<ScissorOutlined />} color="default">Manual Crop</Tag>
+              <Tag icon={<ThunderboltOutlined />} color="default">Savings Review</Tag>
+            </Space>
+          </Space>
+        </Col>
+        <Col xs={24} lg={9}>
+          <div className="hero-metric-grid">
+            <MetricTile title="Batch Limit" value="10" suffix="files / run" />
+            <MetricTile title="Workspace" value={user ? "Active" : "Login Required"} />
+            <MetricTile title="Export" value="ZIP Download" />
           </div>
-        ) : null}
-      </div>
-      <div className="hero-grid">
-        <div className="hero-copy">
-          <h1>Reduce image payload, keep the product visible, and ship cleaner assets faster.</h1>
-          <p className="hero-description">
-            Built for commerce teams handling large product uploads across channels like Naver Smart Store,
-            Coupang, and Kurly. Upload in batches, crop the exact focal area, optimize aggressively, and
-            prove the savings with visible size-reduction metrics.
-          </p>
-          <div className="hero-metrics">
-            <div className="metric-card">
-              <strong>Batch-ready</strong>
-              <span>Upload multiple product images and export them as a single ZIP package.</span>
-            </div>
-            <div className="metric-card">
-              <strong>Cost-aware</strong>
-              <span>Track original bytes, optimized bytes, and reduction rate directly in the workspace.</span>
-            </div>
-            <div className="metric-card">
-              <strong>Operator-friendly</strong>
-              <span>Manual crop, ratio rules, watermarking, and repeatable output settings stay in one flow.</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="hero-notes">
-          <div className="note-card">
-            <span className="note-label">Workflow</span>
-            <strong>Upload, crop, optimize, download</strong>
-            <span>Designed to feel like an operator desk rather than a raw image utility.</span>
-          </div>
-          <div className="note-card">
-            <span className="note-label">Impact</span>
-            <strong>Storage and traffic reduction</strong>
-            <span>Optimization results are framed around payload reduction, not just visual editing.</span>
-          </div>
-          <div className="note-card accent">
-            <span className="note-label">Mode</span>
-            <strong>{user ? "Authenticated workspace active" : "Secure seller workspace"}</strong>
-            <span>{user ? "You can process assets and download results immediately." : "Sign in to open upload access and result history."}</span>
-          </div>
-        </div>
-      </div>
-    </section>
+        </Col>
+      </Row>
+    </PanelCard>
   );
 }

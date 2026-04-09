@@ -1,5 +1,13 @@
+import { Alert, Button, Col, Form, Input, InputNumber, Row, Select, Space, Typography, Upload } from "antd";
+import { InboxOutlined } from "@ant-design/icons";
+
 import { CropSelector } from "./CropSelector";
-import { useState } from "react";
+import { MarketplacePresetStrip } from "./MarketplacePresetStrip";
+import { UploadQueue } from "./UploadQueue";
+import { PanelCard } from "./ui/PanelCard";
+
+const { Dragger } = Upload;
+const { Paragraph, Text } = Typography;
 
 const aspectRatioOptions = [
   { value: "original", label: "Original" },
@@ -25,11 +33,12 @@ export function OptimizationForm({
   user,
   onBaseUrlChange,
   onFileChange,
+  onFileRemove,
+  onFilesClear,
   onOptionsChange,
   onSubmit
 }) {
   const acceptedFileTypes = ".jpg,.jpeg,.png,.webp,.zip";
-  const [dragActive, setDragActive] = useState(false);
 
   function updateOption(key, value) {
     onOptionsChange((current) => {
@@ -44,173 +53,167 @@ export function OptimizationForm({
         };
       }
 
-      return { ...current, [key]: value };
+      return {
+        ...current,
+        presetId: key === "presetId" ? value : current.presetId,
+        [key]: value ?? ""
+      };
     });
   }
 
-  function handleFileChange(nextFiles) {
+  function applyPreset(nextPreset) {
+    onOptionsChange((current) => ({
+      ...current,
+      ...nextPreset,
+      cropX: "",
+      cropY: "",
+      cropWidth: "",
+      cropHeight: ""
+    }));
+  }
+
+  function handleAntUploadChange(info) {
+    const nextFiles = info.fileList
+      .map((entry) => entry.originFileObj)
+      .filter(Boolean);
     onFileChange(nextFiles);
   }
 
-  function handleDrop(event) {
-    event.preventDefault();
-    setDragActive(false);
-    handleFileChange(Array.from(event.dataTransfer.files || []));
-  }
+  const uploadFileList = files.map((file) => ({
+    uid: `${file.name}-${file.size}-${file.lastModified}`,
+    name: file.name,
+    status: "done",
+    size: file.size,
+    type: file.type,
+    originFileObj: file
+  }));
 
   return (
-    <section className="control-panel">
-      <div className="panel-head">
-        <div>
-          <div className="section-kicker">Optimization Workspace</div>
-          <h2>Prepare the output rules</h2>
-          <p>{user.email} 계정으로 로그인된 상태입니다. 셀러용 업로드 규칙을 정하고 바로 처리하세요.</p>
-        </div>
-        <div className="panel-badge">Up to 10 files per batch</div>
-      </div>
+    <Space direction="vertical" size={18} className="full-width">
+      <PanelCard
+        className="workspace-card"
+        title="Seller Workspace"
+        extra={<Text type="secondary">{user.email}</Text>}
+      >
+        <Paragraph className="panel-description">
+          셀러가 실제로 쓰는 작업실처럼, 채널 프리셋을 고른 뒤 작업 파일을 모으고, 출력 규칙을 조정한 다음 바로 배치를 처리하는 흐름으로 구성했습니다.
+        </Paragraph>
 
-      <form className="control-form" onSubmit={onSubmit}>
-        <div className="settings-card">
-          <div className="settings-card-head">
-            <strong>Environment</strong>
-            <span>Choose the API target used for uploads and processing.</span>
+        <Space direction="vertical" size={18} className="full-width">
+          <div>
+            <Text strong>Marketplace Presets</Text>
+            <Paragraph type="secondary">
+              마켓별 대표 규격에서 시작하고, 필요한 경우 수동으로 세부 옵션을 조정하세요.
+            </Paragraph>
+            <MarketplacePresetStrip activePresetId={options.presetId} onApplyPreset={applyPreset} />
           </div>
-          <label className="field">
-            <span>Backend URL</span>
-            <input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} />
-          </label>
-        </div>
 
-        <div className="settings-card">
-          <div className="settings-card-head">
-            <strong>Source Assets</strong>
-            <span>Select one hero image or a small batch to optimize with the same rule set.</span>
-          </div>
-          <label
-            className={dragActive ? "upload-slot dragging" : "upload-slot"}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              accept={acceptedFileTypes}
+          <div>
+            <Text strong>Upload Dock</Text>
+            <Paragraph type="secondary">
+              이미지와 ZIP 파일을 대량으로 올리고, 선택된 파일 목록을 정리한 뒤 같은 규칙으로 한 번에 처리할 수 있습니다.
+            </Paragraph>
+            <Dragger
               multiple
-              onChange={(event) => handleFileChange(Array.from(event.target.files || []))}
-            />
-            <strong>
-              {files.length
-                ? files.length === 1
-                  ? files[0].name
-                  : `${files.length} assets ready`
-                : "Drop images or ZIP files into the workspace"}
-            </strong>
-            <span>
-              {files.length
-                ? files.length === 1
-                  ? `${Math.round(files[0].size / 1024)} KB queued for optimization`
-                  : "Batch upload ready. Images and ZIP archives will be expanded with the same optimization rule."
-                : "Drag files anywhere on the page, or click this area to browse the local workspace."}
-            </span>
-            {files.length > 0 ? (
-              <div className="file-pill-row">
-                {files.map((file) => (
-                  <span key={`${file.name}-${file.size}`} className="file-pill">
-                    {file.name}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </label>
-        </div>
-
-        <div className="settings-card">
-          <div className="settings-card-head">
-            <strong>Output Rules</strong>
-            <span>Define how aggressively the uploaded assets should be trimmed and exported.</span>
-          </div>
-          <div className="field-grid">
-            <label className="field">
-              <span>Width</span>
-              <input value={options.width} onChange={(event) => updateOption("width", event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Height</span>
-              <input value={options.height} onChange={(event) => updateOption("height", event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Quality</span>
-              <input value={options.quality} onChange={(event) => updateOption("quality", event.target.value)} />
-            </label>
+              accept={acceptedFileTypes}
+              showUploadList={false}
+              beforeUpload={() => false}
+              fileList={uploadFileList}
+              onChange={handleAntUploadChange}
+              className="workspace-dragger"
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">파일을 끌어다 놓거나 클릭해서 선택하세요</p>
+              <p className="ant-upload-hint">
+                페이지 전체 드래그 드롭도 지원합니다. 지원 확장자는 jpg, jpeg, png, webp, zip 입니다.
+              </p>
+            </Dragger>
           </div>
 
-          <div className="field-grid">
-            <label className="field">
-              <span>Aspect Ratio</span>
-              <select value={options.aspectRatio} onChange={(event) => updateOption("aspectRatio", event.target.value)}>
-                {aspectRatioOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Crop</span>
-              <select value={options.cropMode} onChange={(event) => updateOption("cropMode", event.target.value)}>
-                {cropModeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>Watermark</span>
-              <input
-                placeholder="Optional brand mark"
-                value={options.watermarkText}
-                onChange={(event) => updateOption("watermarkText", event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="rule-summary">
-            <span>Current mode</span>
-            <strong>{options.cropMode === "manual" ? "Manual crop with focal selection" : options.cropMode === "center-crop" ? "Automatic center crop" : "Fit inside export"}</strong>
-          </div>
-        </div>
+          <UploadQueue files={files} onRemove={onFileRemove} onClear={onFilesClear} />
+        </Space>
+      </PanelCard>
 
-        {options.cropMode === "manual" && files.length === 1 ? (
-          <div className="settings-card">
-            <div className="settings-card-head">
-              <strong>Crop Target</strong>
-              <span>Drag the exact visible product area that should survive the optimization pass.</span>
+      <PanelCard className="workspace-card" title="Output Rules" extra={<Text type="secondary">Compression, crop, watermark</Text>}>
+        <Form layout="vertical" onFinish={onSubmit}>
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={8}>
+              <Form.Item label="Width">
+                <InputNumber value={Number(options.width || 0) || null} onChange={(value) => updateOption("width", value ? String(value) : "")} className="full-width" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="Height">
+                <InputNumber value={Number(options.height || 0) || null} onChange={(value) => updateOption("height", value ? String(value) : "")} className="full-width" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="Quality">
+                <InputNumber min={1} max={100} value={Number(options.quality || 0) || null} onChange={(value) => updateOption("quality", value ? String(value) : "")} className="full-width" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 0]}>
+            <Col xs={24} md={8}>
+              <Form.Item label="Aspect Ratio">
+                <Select value={options.aspectRatio} options={aspectRatioOptions} onChange={(value) => updateOption("aspectRatio", value)} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="Crop Mode">
+                <Select value={options.cropMode} options={cropModeOptions} onChange={(value) => updateOption("cropMode", value)} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="Watermark">
+                <Input value={options.watermarkText} placeholder="Optional brand mark" onChange={(event) => updateOption("watermarkText", event.target.value)} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {options.cropMode === "manual" && files.length === 1 ? (
+            <div className="crop-card-shell">
+              <Text strong>Focal Crop Review</Text>
+              <Paragraph type="secondary">
+                상품이 실제로 보여야 하는 범위를 직접 드래그해서 지정하세요.
+              </Paragraph>
+              <CropSelector file={files[0]} options={options} onOptionsChange={onOptionsChange} />
             </div>
-            <CropSelector
-              file={files[0]}
-              options={options}
-              onOptionsChange={onOptionsChange}
-            />
-          </div>
-        ) : null}
+          ) : null}
 
-        {options.cropMode === "manual" && files.length > 1 ? (
-          <div className="settings-card">
-            <div className="crop-selector-empty">
-              수동 크롭은 한 번에 한 장만 지정할 수 있습니다. 여러 장을 처리할 때는 `Fit Inside` 또는 `Center Crop`을 사용하세요.
+          {options.cropMode === "manual" && files.length > 1 ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="수동 크롭은 한 장 업로드에서만 사용할 수 있습니다."
+              description="여러 장을 동시에 처리할 때는 Center Crop 또는 Fit Inside를 사용하는 편이 안전합니다."
+            />
+          ) : null}
+
+          <div className="rule-footer">
+              <div className="rule-footer-copy">
+                <Text strong>Current intent</Text>
+                <Paragraph type="secondary">
+                  {options.height ? `${options.width} x ${options.height}` : `${options.width || "Auto"} width`} / Q{options.quality || "-"} / {options.cropMode}
+                </Paragraph>
+            </div>
+            <div className="rule-footer-actions">
+              <Input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} addonBefore="API" />
+              <Button type="primary" htmlType="submit" size="large">
+                Optimize Current Batch
+              </Button>
             </div>
           </div>
-        ) : null}
+        </Form>
+      </PanelCard>
 
-        <div className="action-row">
-          <button className="primary-button" type="submit">Start Optimization</button>
-          <div className="action-note">
-            <strong>Expected outcome</strong>
-            <span>Upload traffic stays authenticated, output payload drops, and batch results can be downloaded together.</span>
-          </div>
-        </div>
-        <p className="status-copy">{statusMessage}</p>
-        {error ? <p className="error-copy">{error}</p> : null}
-      </form>
-    </section>
+      <Space direction="vertical" size={12} className="full-width">
+        <Alert type="info" showIcon message={statusMessage} />
+        {error ? <Alert type="error" showIcon message={error} /> : null}
+      </Space>
+    </Space>
   );
 }

@@ -37,6 +37,8 @@ After service creation, set:
 
 - `APP_PUBLIC_BASE_URL`
   - example: `https://imageflow-backend.onrender.com`
+- `APP_AUTH_JWT_SECRET`
+  - use a real secret value with at least 32 characters
 
 ## 3. Deploy Frontend On Vercel
 
@@ -65,3 +67,9 @@ After both deploys:
 - uploaded/output files are temporary
 - no Redis worker is used in deploy mode
 - very large files may fail depending on platform limits
+
+## 6. Practical Checklist
+
+For a short Korean checklist version, see:
+
+- [docs/deploy-checklist.md](/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-checklist.md)
