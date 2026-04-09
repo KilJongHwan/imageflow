@@ -1,11 +1,11 @@
 services:
   - type: web
     name: imageflow-backend
-    runtime: java
+    runtime: docker
     rootDir: backend
     plan: free
-    buildCommand: ./gradlew build -x test
-    startCommand: ./gradlew bootRun
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     envVars:
       - key: JAVA_VERSION
         value: "17"
@@ -22,6 +22,8 @@ services:
           name: imageflow-db
           property: password
       - key: APP_PUBLIC_BASE_URL
+        sync: false
+      - key: APP_AUTH_JWT_SECRET
         sync: false
       - key: APP_STORAGE_ROOT
         value: /tmp/imageflow-storage

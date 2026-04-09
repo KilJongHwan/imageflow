@@ -3,7 +3,7 @@
 This project is prepared for demo-style free deployment with:
 
 - frontend: Vercel
-- backend: Render
+- backend: Render (Docker runtime)
 - database: Render Postgres
 
 ## Important Note
@@ -30,6 +30,8 @@ Render can read the included [render.yaml](/c:/Users/tsline/IdeaProjects/imagefl
 3. Choose `Blueprint`
 4. Select this GitHub repository
 5. Render will detect `render.yaml`
+
+This backend now deploys via `runtime: docker`, not `runtime: java`.
 
 ### Required environment variable
 
