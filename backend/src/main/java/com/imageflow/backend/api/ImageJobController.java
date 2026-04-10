@@ -3,7 +3,6 @@ package com.imageflow.backend.api;
 import java.util.UUID;
 import java.util.List;
 
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import com.imageflow.backend.domain.image.ImageJobService;
 import com.imageflow.backend.domain.image.dto.CreateImageJobRequest;
@@ -126,7 +126,7 @@ public class ImageJobController {
     }
 
     @GetMapping("/download")
-    public ResponseEntity<Resource> download(
+    public ResponseEntity<StreamingResponseBody> download(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestParam("jobIds") List<UUID> jobIds
     ) {

@@ -21,5 +21,8 @@ app:
       secret: test-jwt-secret-key-for-imageflow-32chars
   upload:
     max-batch-size: 10
+    max-zip-entry-count: 3
+    max-zip-entry-bytes: 4096
+    max-zip-total-bytes: 8192
   queue:
     enabled: false

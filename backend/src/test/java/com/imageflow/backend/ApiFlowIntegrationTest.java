@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.imageio.ImageIO;
 
@@ -30,7 +32,7 @@ class ApiFlowIntegrationTest {
     private MockMvc mockMvc;
 
     @Test
-    void signsUpCreatesImageJobAndReadsItBack() throws Exception {
+    void signsUpUploadsImageJobAndReadsItBack() throws Exception {
         MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -46,26 +48,25 @@ class ApiFlowIntegrationTest {
 
         String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
 
-        MvcResult createImageJobResult = mockMvc.perform(post("/api/image-jobs")
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "single.png",
+                MediaType.IMAGE_PNG_VALUE,
+                pngBytes()
+        );
+
+        MvcResult createImageJobResult = mockMvc.perform(multipart("/api/image-jobs/upload")
+                        .file(file)
                         .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "prompt": "Turn this product shot into a clean banner",
-                                  "sourceImageUrl": "https://example.com/source.png",
-                                  "creditsToUse": 3,
-                                  "targetWidth": 400,
-                                  "quality": 70,
-                                  "outputFormat": "webp"
-                                }
-                                """))
+                        .param("width", "400")
+                        .param("quality", "70"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").isNotEmpty())
-                .andExpect(jsonPath("$.status").value("QUEUED"))
-                .andExpect(jsonPath("$.creditsUsed").value(3))
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.creditsUsed").value(1))
                 .andExpect(jsonPath("$.targetWidth").value(400))
                 .andExpect(jsonPath("$.quality").value(70))
-                .andExpect(jsonPath("$.outputFormat").value("webp"))
+                .andExpect(jsonPath("$.outputFormat").value("jpg"))
                 .andReturn();
 
         String imageJobId = JsonTestUtils.read(createImageJobResult.getResponse().getContentAsString(), "id");
@@ -74,8 +75,37 @@ class ApiFlowIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(imageJobId))
-                .andExpect(jsonPath("$.prompt").value("Turn this product shot into a clean banner"))
-                .andExpect(jsonPath("$.status").value("QUEUED"));
+                .andExpect(jsonPath("$.prompt").value("Simple optimize upload"))
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void rejectsPromptBasedImageGenerationInSyncMode() throws Exception {
+        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "prompt@imageflow.dev",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+
+        mockMvc.perform(post("/api/image-jobs")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prompt": "Turn this product shot into a clean banner",
+                                  "creditsToUse": 1
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("prompt-based image generation is unavailable in sync mode"));
     }
 
     @Test
@@ -93,15 +123,39 @@ class ApiFlowIntegrationTest {
 
         String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
 
-        mockMvc.perform(post("/api/image-jobs")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "prompt": "Need a high-end product composite",
-                                  "creditsToUse": 25
-                                }
-                                """))
+        MockMultipartFile[] batch = tenPngFiles();
+
+        mockMvc.perform(multipart("/api/image-jobs/uploads")
+                        .file(batch[0])
+                        .file(batch[1])
+                        .file(batch[2])
+                        .file(batch[3])
+                        .file(batch[4])
+                        .file(batch[5])
+                        .file(batch[6])
+                        .file(batch[7])
+                        .file(batch[8])
+                        .file(batch[9])
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(multipart("/api/image-jobs/uploads")
+                        .file(batch[0])
+                        .file(batch[1])
+                        .file(batch[2])
+                        .file(batch[3])
+                        .file(batch[4])
+                        .file(batch[5])
+                        .file(batch[6])
+                        .file(batch[7])
+                        .file(batch[8])
+                        .file(batch[9])
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(multipart("/api/image-jobs/upload")
+                        .file(new MockMultipartFile("file", "overflow.png", MediaType.IMAGE_PNG_VALUE, pngBytes()))
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.message").value("not enough credits"));
@@ -163,6 +217,38 @@ class ApiFlowIntegrationTest {
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"imageflow-batch.zip\""));
     }
 
+    @Test
+    void rejectsZipArchiveWithTooManyEntries() throws Exception {
+        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zip-limit@imageflow.dev",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+
+        MockMultipartFile zipArchive = new MockMultipartFile(
+                "files",
+                "batch.zip",
+                "application/zip",
+                zipBytes(4)
+        );
+
+        mockMvc.perform(multipart("/api/image-jobs/uploads")
+                        .file(zipArchive)
+                        .header("Authorization", "Bearer " + token)
+                        .param("width", "400")
+                        .param("quality", "80"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value("zip archive contains too many entries"));
+    }
+
     private byte[] pngBytes() {
         try {
             BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
@@ -178,5 +264,33 @@ class ApiFlowIntegrationTest {
         } catch (Exception exception) {
             throw new IllegalStateException("failed to generate png bytes for test", exception);
         }
+    }
+
+    private byte[] zipBytes(int imageCount) {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+            for (int index = 0; index < imageCount; index++) {
+                zipOutputStream.putNextEntry(new ZipEntry("image-" + index + ".png"));
+                zipOutputStream.write(pngBytes());
+                zipOutputStream.closeEntry();
+            }
+            zipOutputStream.finish();
+            return outputStream.toByteArray();
+        } catch (Exception exception) {
+            throw new IllegalStateException("failed to generate zip bytes for test", exception);
+        }
+    }
+
+    private MockMultipartFile[] tenPngFiles() {
+        MockMultipartFile[] files = new MockMultipartFile[10];
+        for (int index = 0; index < files.length; index++) {
+            files[index] = new MockMultipartFile(
+                    "files",
+                    "batch-" + index + ".png",
+                    MediaType.IMAGE_PNG_VALUE,
+                    pngBytes()
+            );
+        }
+        return files;
     }
 }

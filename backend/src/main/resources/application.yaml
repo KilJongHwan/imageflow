@@ -38,3 +38,6 @@ app:
     root: ../storage
   upload:
     max-batch-size: 10
+    max-zip-entry-count: 32
+    max-zip-entry-bytes: 20971520
+    max-zip-total-bytes: 52428800

@@ -3,8 +3,8 @@ package com.imageflow.backend.domain.image;
 import java.util.UUID;
 import java.nio.file.Path;
 import java.nio.file.Files;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -14,14 +14,13 @@ import java.util.zip.ZipOutputStream;
 import java.util.zip.ZipInputStream;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import com.imageflow.backend.common.storage.StoredFile;
 import com.imageflow.backend.common.storage.StorageService;
@@ -50,7 +49,11 @@ public class ImageJobService {
     private final StorageService storageService;
     private final String publicBaseUrl;
     private final String processingMode;
+    private final boolean queueEnabled;
     private final int maxBatchSize;
+    private final int maxZipEntryCount;
+    private final long maxZipEntryBytes;
+    private final long maxZipTotalBytes;
 
     public ImageJobService(
             ImageJobRepository imageJobRepository,
@@ -60,7 +63,11 @@ public class ImageJobService {
             StorageService storageService,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl,
             @Value("${app.processing.mode:sync}") String processingMode,
-            @Value("${app.upload.max-batch-size:10}") int maxBatchSize
+            @Value("${app.queue.enabled:true}") boolean queueEnabled,
+            @Value("${app.upload.max-batch-size:10}") int maxBatchSize,
+            @Value("${app.upload.max-zip-entry-count:32}") int maxZipEntryCount,
+            @Value("${app.upload.max-zip-entry-bytes:20971520}") long maxZipEntryBytes,
+            @Value("${app.upload.max-zip-total-bytes:52428800}") long maxZipTotalBytes
     ) {
         this.imageJobRepository = imageJobRepository;
         this.usageRecordRepository = usageRecordRepository;
@@ -69,10 +76,15 @@ public class ImageJobService {
         this.storageService = storageService;
         this.publicBaseUrl = publicBaseUrl;
         this.processingMode = processingMode;
+        this.queueEnabled = queueEnabled;
         this.maxBatchSize = maxBatchSize;
+        this.maxZipEntryCount = maxZipEntryCount;
+        this.maxZipEntryBytes = maxZipEntryBytes;
+        this.maxZipTotalBytes = maxZipTotalBytes;
     }
 
     public ImageJobResponse create(User user, CreateImageJobRequest request) {
+        validatePromptGenerationMode();
         if (request.prompt() == null || request.prompt().isBlank()) {
             throw new BadRequestException("prompt is required");
         }
@@ -296,7 +308,7 @@ public class ImageJobService {
     }
 
     @Transactional(readOnly = true)
-    public ResponseEntity<Resource> downloadJobs(User user, List<UUID> jobIds) {
+    public ResponseEntity<StreamingResponseBody> downloadJobs(User user, List<UUID> jobIds) {
         if (jobIds == null || jobIds.isEmpty()) {
             throw new BadRequestException("jobIds is required");
         }
@@ -311,33 +323,37 @@ public class ImageJobService {
 
         Set<String> usedNames = new HashSet<>();
 
-        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-             ZipOutputStream zipOutputStream = new ZipOutputStream(buffer)) {
-            for (ImageJob job : jobs) {
-                if (job.getResultImageUrl() == null || job.getResultImageUrl().isBlank()) {
-                    throw new BadRequestException("all selected jobs must have a downloadable result");
-                }
-
-                Path outputFile = storageService.resolveOutputFile(resolveOutputFilename(job));
-                if (!Files.exists(outputFile)) {
-                    throw new NotFoundException("optimized file not found for job: " + job.getId());
-                }
-
-                String entryName = uniqueEntryName(job, usedNames);
-                zipOutputStream.putNextEntry(new ZipEntry(entryName));
-                zipOutputStream.write(Files.readAllBytes(outputFile));
-                zipOutputStream.closeEntry();
+        List<DownloadableResultFile> downloadableFiles = new ArrayList<>();
+        for (ImageJob job : jobs) {
+            if (job.getResultImageUrl() == null || job.getResultImageUrl().isBlank()) {
+                throw new BadRequestException("all selected jobs must have a downloadable result");
             }
-            zipOutputStream.finish();
 
-            ByteArrayResource resource = new ByteArrayResource(buffer.toByteArray());
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"imageflow-batch.zip\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(resource);
-        } catch (IOException exception) {
-            throw new IllegalStateException("failed to prepare batch download", exception);
+            Path outputFile = storageService.resolveOutputFile(resolveOutputFilename(job));
+            if (!Files.exists(outputFile)) {
+                throw new NotFoundException("optimized file not found for job: " + job.getId());
+            }
+
+            downloadableFiles.add(new DownloadableResultFile(uniqueEntryName(job, usedNames), outputFile));
         }
+
+        StreamingResponseBody responseBody = outputStream -> {
+            try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+                for (DownloadableResultFile downloadableFile : downloadableFiles) {
+                    zipOutputStream.putNextEntry(new ZipEntry(downloadableFile.entryName()));
+                    Files.copy(downloadableFile.path(), zipOutputStream);
+                    zipOutputStream.closeEntry();
+                }
+                zipOutputStream.finish();
+            } catch (IOException exception) {
+                throw new IllegalStateException("failed to stream batch download", exception);
+            }
+        };
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"imageflow-batch.zip\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(responseBody);
     }
 
     private String resolveOutputFormat(String outputFormat) {
@@ -404,6 +420,12 @@ public class ImageJobService {
         return value.trim();
     }
 
+    private void validatePromptGenerationMode() {
+        if ("sync".equalsIgnoreCase(processingMode) || !queueEnabled) {
+            throw new BadRequestException("prompt-based image generation is unavailable in sync mode");
+        }
+    }
+
     private String publicUrl(String bucket, String filename) {
         return publicBaseUrl.replaceAll("/$", "") + "/api/files/" + bucket + "/" + filename;
     }
@@ -444,36 +466,50 @@ public class ImageJobService {
 
     private List<UploadBinary> extractZipImages(MultipartFile archive) {
         List<UploadBinary> uploadBinaries = new ArrayList<>();
+        long totalUncompressedBytes = 0;
+        int processedEntries = 0;
 
         try {
             byte[] archiveBytes = archive.getBytes();
             storageService.validateZipBytes(archive.getOriginalFilename(), archiveBytes);
 
             try (ZipInputStream zipInputStream = new ZipInputStream(new java.io.ByteArrayInputStream(archiveBytes))) {
-            ZipEntry entry;
-            while ((entry = zipInputStream.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
-                    continue;
-                }
+                ZipEntry entry;
+                while ((entry = zipInputStream.getNextEntry()) != null) {
+                    processedEntries++;
+                    if (processedEntries > maxZipEntryCount) {
+                        throw new BadRequestException("zip archive contains too many entries");
+                    }
 
-                String entryName = extractEntryFilename(entry.getName());
-                if (entryName.isBlank() || entryName.startsWith(".")) {
-                    continue;
-                }
-                if (!storageService.isSupportedImageFilename(entryName)) {
-                    if (entryName.startsWith("__MACOSX")) {
+                    if (entry.isDirectory()) {
                         continue;
                     }
-                    throw new BadRequestException("zip archive contains unsupported file: " + entryName);
-                }
 
-                byte[] bytes = zipInputStream.readAllBytes();
-                if (bytes.length == 0) {
-                    continue;
+                    String entryName = extractEntryFilename(entry.getName());
+                    if (entryName.isBlank() || entryName.startsWith(".")) {
+                        continue;
+                    }
+                    if (!storageService.isSupportedImageFilename(entryName)) {
+                        if (entryName.startsWith("__MACOSX")) {
+                            continue;
+                        }
+                        throw new BadRequestException("zip archive contains unsupported file: " + entryName);
+                    }
+
+                    byte[] bytes = readZipEntryBytes(zipInputStream, entryName);
+                    totalUncompressedBytes += bytes.length;
+                    if (totalUncompressedBytes > maxZipTotalBytes) {
+                        throw new BadRequestException("zip archive is too large after extraction");
+                    }
+                    if (bytes.length == 0) {
+                        continue;
+                    }
+                    storageService.validateImageBytes(entryName, bytes);
+                    uploadBinaries.add(new UploadBinary(entryName, bytes));
+                    if (uploadBinaries.size() > maxBatchSize) {
+                        throw new BadRequestException("batch upload supports up to " + maxBatchSize + " images");
+                    }
                 }
-                storageService.validateImageBytes(entryName, bytes);
-                uploadBinaries.add(new UploadBinary(entryName, bytes));
-            }
             }
         } catch (IOException exception) {
             throw new IllegalStateException("failed to read zip archive", exception);
@@ -484,6 +520,23 @@ public class ImageJobService {
         }
 
         return uploadBinaries;
+    }
+
+    private byte[] readZipEntryBytes(ZipInputStream zipInputStream, String entryName) throws IOException {
+        byte[] buffer = new byte[8192];
+        long totalBytes = 0;
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            int read;
+            while ((read = zipInputStream.read(buffer)) != -1) {
+                totalBytes += read;
+                if (totalBytes > maxZipEntryBytes) {
+                    throw new BadRequestException("zip entry is too large: " + entryName);
+                }
+                outputStream.write(buffer, 0, read);
+            }
+            return outputStream.toByteArray();
+        }
     }
 
     private String extractEntryFilename(String entryName) {
@@ -517,5 +570,8 @@ public class ImageJobService {
         String uniqueName = base + "-" + job.getId() + extension;
         usedNames.add(uniqueName);
         return uniqueName;
+    }
+
+    private record DownloadableResultFile(String entryName, Path path) {
     }
 }

@@ -95,6 +95,12 @@ The repository already supports these basics:
 - crop selection UI on the uploaded image in frontend
 - batch upload
 - ZIP download for processed outputs
+- ZIP upload hardening with entry-count and extraction-size limits
+
+In the current demo-oriented `sync` mode:
+
+- upload-based optimization is supported
+- prompt-based generation endpoint is intentionally unavailable
 
 What it does not yet fully provide is a true service-grade seller workflow such as batch jobs, channel presets, history-first dashboard UX, and marketplace-aware export flows.
 

@@ -36,17 +36,17 @@ export default function App() {
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
   const pollTimerRef = useRef(null);
+  const pollingEnabledRef = useRef(false);
   const dragDepthRef = useRef(0);
   const [pageDropActive, setPageDropActive] = useState(false);
 
   useEffect(() => () => {
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-    }
+    stopPolling();
   }, []);
 
   useEffect(() => {
     if (!token) {
+      stopPolling();
       setUser(null);
       setRecentJobs([]);
       setSelectedJobId("");
@@ -196,6 +196,14 @@ export default function App() {
     }));
   }
 
+  function stopPolling() {
+    pollingEnabledRef.current = false;
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }
+
   async function request(path, requestOptions = {}) {
     const headers = new Headers(requestOptions.headers || {});
     if (token) {
@@ -231,9 +239,11 @@ export default function App() {
       }
 
       const me = await response.json();
+      pollingEnabledRef.current = true;
       setUser(me);
       setAuthError("");
     } catch (_error) {
+      stopPolling();
       setToken("");
       setUser(null);
       setAuthError("세션이 만료되어 다시 로그인해주세요.");
@@ -287,6 +297,7 @@ export default function App() {
   }
 
   function handleLogout() {
+    stopPolling();
     setToken("");
     setUser(null);
     setJobs([]);
@@ -315,6 +326,7 @@ export default function App() {
 
     setError("");
     setJobs([]);
+    stopPolling();
     setStatusMessage("원본을 업로드하고 처리 작업을 준비하는 중입니다.");
 
     const formData = new FormData();
@@ -350,6 +362,7 @@ export default function App() {
           : "큐에 등록되었습니다. 최적화 결과를 확인하는 중입니다."
       );
       if (nextJobs.length === 1) {
+        pollingEnabledRef.current = true;
         pollJob(nextJobs[0].id);
       } else {
         loadRecentJobs();
@@ -361,22 +374,29 @@ export default function App() {
   }
 
   async function pollJob(jobId) {
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
+    if (!pollingEnabledRef.current) {
+      return;
     }
+    stopPolling();
+    pollingEnabledRef.current = true;
 
     try {
       const latestJob = await request(`/api/image-jobs/${jobId}`);
+      if (!pollingEnabledRef.current) {
+        return;
+      }
       setJobs([latestJob]);
-       mergeJobsIntoHistory([latestJob]);
+      mergeJobsIntoHistory([latestJob]);
       setSelectedJobId(latestJob.id);
 
       if (latestJob.status === "SUCCEEDED") {
+        stopPolling();
         setStatusMessage("최적화가 완료되었습니다. 결과를 확인해보세요.");
         return;
       }
 
       if (latestJob.status === "FAILED") {
+        stopPolling();
         setStatusMessage("처리 중 문제가 발생했습니다.");
         return;
       }
@@ -384,6 +404,7 @@ export default function App() {
       setStatusMessage(`현재 상태: ${latestJob.status}`);
       pollTimerRef.current = setTimeout(() => pollJob(jobId), POLL_INTERVAL_MS);
     } catch (pollError) {
+      stopPolling();
       setError(pollError.message);
       setStatusMessage("상태 확인이 중단되었습니다.");
     }
