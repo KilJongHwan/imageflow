@@ -129,69 +129,69 @@ export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, 
       </PanelCard>
 
       {selectedJob ? (
-        <Row gutter={[18, 18]}>
-          <Col xs={24} xl={15}>
-            <PanelCard className="workspace-card" title="Visual Review">
-              <Row gutter={[16, 16]}>
-                <Col xs={24} md={12}>
-                  <div className="compare-panel">
-                    <Tag color="default">Source</Tag>
-                    {selectedJob.sourceImageUrl ? (
-                      <Image src={selectedJob.sourceImageUrl} alt="source asset" className="result-image" />
-                    ) : (
-                      <Empty description="원본 프리뷰 없음" />
-                    )}
-                  </div>
-                </Col>
-                <Col xs={24} md={12}>
-                  <div className="compare-panel">
-                    <Tag color="blue">Optimized</Tag>
-                    {selectedJob.resultImageUrl ? (
-                      <Image src={selectedJob.resultImageUrl} alt="optimized asset" className="result-image" />
-                    ) : (
-                      <Empty description="결과 프리뷰 대기 중" />
-                    )}
-                  </div>
-                </Col>
-              </Row>
+        <Space direction="vertical" size={18} className="full-width">
+          <PanelCard className="workspace-card" title="Visual Review">
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={12}>
+                <div className="compare-panel">
+                  <Tag color="default">Source</Tag>
+                  {selectedJob.sourceImageUrl ? (
+                    <Image src={selectedJob.sourceImageUrl} alt="source asset" className="result-image" />
+                  ) : (
+                    <Empty description="원본 프리뷰 없음" />
+                  )}
+                </div>
+              </Col>
+              <Col xs={24} md={12}>
+                <div className="compare-panel">
+                  <Tag color="blue">Optimized</Tag>
+                  {selectedJob.resultImageUrl ? (
+                    <Image src={selectedJob.resultImageUrl} alt="optimized asset" className="result-image" />
+                  ) : (
+                    <Empty description="결과 프리뷰 대기 중" />
+                  )}
+                </div>
+              </Col>
+            </Row>
 
-              <Descriptions column={2} className="job-descriptions">
-                <Descriptions.Item label="Status">{selectedJob.status}</Descriptions.Item>
-                <Descriptions.Item label="Created">{formatDate(selectedJob.createdAt)}</Descriptions.Item>
-                <Descriptions.Item label="Resolution">
-                  {selectedJob.targetHeight ? `${selectedJob.targetWidth} x ${selectedJob.targetHeight}` : selectedJob.targetWidth || "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Aspect Ratio">{selectedJob.aspectRatio || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Crop">{selectedJob.cropMode || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Quality">{selectedJob.quality || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Source Size">{formatBytes(selectedJob.sourceFileSizeBytes)}</Descriptions.Item>
-                <Descriptions.Item label="Result Size">{formatBytes(selectedJob.resultFileSizeBytes)}</Descriptions.Item>
-                <Descriptions.Item label="Saved">{formatBytes(selectedJob.savedBytes)}</Descriptions.Item>
-                <Descriptions.Item label="Reduction">{formatPercent(selectedJob.reductionRate)}</Descriptions.Item>
-                <Descriptions.Item label="Watermark">{selectedJob.watermarkText || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Output Key">{selectedJob.outputObjectKey || "-"}</Descriptions.Item>
-              </Descriptions>
+            <Descriptions column={2} className="job-descriptions">
+              <Descriptions.Item label="Status">{selectedJob.status}</Descriptions.Item>
+              <Descriptions.Item label="Created">{formatDate(selectedJob.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label="Resolution">
+                {selectedJob.targetHeight ? `${selectedJob.targetWidth} x ${selectedJob.targetHeight}` : selectedJob.targetWidth || "-"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Aspect Ratio">{selectedJob.aspectRatio || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Crop">{selectedJob.cropMode || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Quality">{selectedJob.quality || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Source Size">{formatBytes(selectedJob.sourceFileSizeBytes)}</Descriptions.Item>
+              <Descriptions.Item label="Result Size">{formatBytes(selectedJob.resultFileSizeBytes)}</Descriptions.Item>
+              <Descriptions.Item label="Saved">{formatBytes(selectedJob.savedBytes)}</Descriptions.Item>
+              <Descriptions.Item label="Reduction">{formatPercent(selectedJob.reductionRate)}</Descriptions.Item>
+              <Descriptions.Item label="Watermark">{selectedJob.watermarkText || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Output Key">{selectedJob.outputObjectKey || "-"}</Descriptions.Item>
+            </Descriptions>
 
-              {selectedJob.failureReason ? (
-                <Alert type="error" showIcon message={selectedJob.failureReason} />
-              ) : null}
-            </PanelCard>
-          </Col>
+            {selectedJob.failureReason ? (
+              <Alert type="error" showIcon message={selectedJob.failureReason} />
+            ) : null}
+          </PanelCard>
 
-          <Col xs={24} xl={9}>
-            <Space direction="vertical" size={18} className="full-width">
-              {jobs.length > 0 ? (
+          <Row gutter={[18, 18]}>
+            {jobs.length > 0 ? (
+              <Col xs={24} xl={12}>
                 <PanelCard className="workspace-card" title="Current Batch Queue">
                   <JobList jobs={jobs} selectedJobId={selectedJob.id} onSelectJob={onSelectJob} title="Current Batch" />
                 </PanelCard>
-              ) : null}
+              </Col>
+            ) : null}
 
+            <Col xs={24} xl={jobs.length > 0 ? 12 : 24}>
               <PanelCard className="workspace-card" title="Recent Workspace History">
                 <JobList jobs={recentJobs} selectedJobId={selectedJob.id} onSelectJob={onSelectJob} title="History" />
               </PanelCard>
-            </Space>
-          </Col>
-        </Row>
+            </Col>
+          </Row>
+        </Space>
       ) : (
         <PanelCard className="workspace-card" title="Ready for Review">
           <Empty description="로그인 후 배치를 실행하면 최근 작업, 절감률, 전후 비교가 여기 표시됩니다." />
