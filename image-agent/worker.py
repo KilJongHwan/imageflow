@@ -76,7 +76,15 @@ def optimize_image(job):
     result_image_url = job.get("resultImageUrl")
 
     output_buffer = BytesIO()
-    image = apply_watermark(image, job.get("watermarkText"))
+    image = apply_watermark(
+        image,
+        job.get("watermarkText"),
+        job.get("watermarkAccentText"),
+        job.get("watermarkStyle"),
+        job.get("watermarkPosition"),
+        job.get("watermarkOpacity"),
+        job.get("watermarkScalePercent"),
+    )
     save_image(image, output_buffer, output_format, quality)
     output_buffer.seek(0)
 
@@ -145,7 +153,7 @@ def apply_manual_crop(image, job):
     return image.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
 
 
-def apply_watermark(image, watermark_text):
+def apply_watermark(image, watermark_text, accent_text, watermark_style, watermark_position, watermark_opacity, watermark_scale_percent):
     if not watermark_text:
         return image
 
@@ -154,20 +162,65 @@ def apply_watermark(image, watermark_text):
 
     overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(overlay)
-    font = ImageFont.load_default()
+    title_font = ImageFont.load_default()
+    accent_font = ImageFont.load_default()
+    style = (watermark_style or "signature").strip().lower()
+    position = (watermark_position or "bottom-right").strip().lower()
+    opacity = max(20, min(90, int(watermark_opacity or 56)))
+    scale_percent = max(10, min(40, int(watermark_scale_percent or 18)))
+    accent = (accent_text or "").strip()
     text = watermark_text.strip()
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    x = max(20, image.width - text_width - 28)
-    y = max(20, image.height - text_height - 28)
-    draw.rounded_rectangle(
-        (x - 12, y - 8, x + text_width + 12, y + text_height + 8),
-        radius=14,
-        fill=(17, 24, 39, 120),
-    )
-    draw.text((x, y), text, fill=(255, 255, 255, 220), font=font)
+
+    box_width = max(180, min(image.width - 40, int(image.width * scale_percent / 100)))
+    box_height = max(54, int(image.height / 8) if accent else int(image.height / 10))
+    x, y = resolve_watermark_position(image.width, image.height, box_width, box_height, position)
+    fill = resolve_background_fill(style, opacity)
+    radius = 28 if style == "monogram" else 22
+    draw.rounded_rectangle((x, y, x + box_width, y + box_height), radius=radius, fill=fill)
+
+    title_y = y + 16
+    draw.text((x + 16, title_y), text, fill=(255, 255, 255, 235), font=title_font)
+    if accent:
+        draw.text((x + 16, title_y + 18), accent, fill=resolve_accent_fill(style), font=accent_font)
+
     return Image.alpha_composite(image, overlay)
+
+
+def resolve_watermark_position(image_width, image_height, box_width, box_height, position):
+    padding = max(20, image_width // 34)
+    if position == "bottom-left":
+        return padding, image_height - box_height - padding
+    if position == "top-right":
+        return image_width - box_width - padding, padding
+    if position == "center":
+        return (image_width - box_width) // 2, (image_height - box_height) // 2
+    return image_width - box_width - padding, image_height - box_height - padding
+
+
+def resolve_background_fill(style, opacity):
+    alpha = max(40, min(230, int(255 * opacity / 100)))
+    fills = {
+        "outline": (15, 23, 42, int(alpha * 0.4)),
+        "badge": (17, 24, 39, alpha),
+        "plaque": (17, 24, 39, alpha),
+        "monogram": (17, 24, 39, int(alpha * 0.7)),
+        "ribbon": (31, 41, 55, int(alpha * 0.8)),
+        "pop": (190, 24, 93, alpha),
+        "sticker": (124, 45, 18, int(alpha * 0.86)),
+        "label": (29, 78, 216, int(alpha * 0.86)),
+    }
+    return fills.get(style, (15, 23, 42, int(alpha * 0.76)))
+
+
+def resolve_accent_fill(style):
+    fills = {
+        "plaque": (245, 213, 139, 235),
+        "monogram": (245, 213, 139, 235),
+        "ribbon": (245, 213, 139, 235),
+        "pop": (253, 230, 138, 235),
+        "label": (191, 219, 254, 235),
+    }
+    return fills.get(style, (219, 234, 254, 235))
 
 
 def parse_aspect_ratio(aspect_ratio):

@@ -1,43 +1,45 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 20MB
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:20MB}
   datasource:
-    url: jdbc:postgresql://localhost:5432/imageflow
-    username: imageflow
-    password: imageflow1234
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/imageflow}
+    username: ${DB_USERNAME:imageflow}
+    password: ${DB_PASSWORD:imageflow1234}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${JPA_FORMAT_SQL:true}
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 app:
-  public-base-url: http://localhost:8080
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
   auth:
     jwt:
-      secret: change-this-demo-jwt-secret-key-at-least-32chars
-      expiration-seconds: 604800
+      secret: ${JWT_SECRET:change-this-demo-jwt-secret-key-at-least-32chars}
+      expiration-seconds: ${JWT_EXPIRATION_SECONDS:604800}
   processing:
-    mode: sync
+    mode: ${APP_PROCESSING_MODE:sync}
   queue:
-    enabled: false
-    image-jobs-key: imageflow:image-jobs
+    enabled: ${APP_QUEUE_ENABLED:false}
+    image-jobs-key: ${APP_QUEUE_IMAGE_JOBS_KEY:imageflow:image-jobs}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   storage:
-    root: ../storage
+    root: ${APP_STORAGE_ROOT:../storage}
   upload:
-    max-batch-size: 10
-    max-zip-entry-count: 32
-    max-zip-entry-bytes: 20971520
-    max-zip-total-bytes: 52428800
+    max-batch-size: ${APP_UPLOAD_MAX_BATCH_SIZE:10}
+    max-zip-entry-count: ${APP_UPLOAD_MAX_ZIP_ENTRY_COUNT:32}
+    max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:20971520}
+    max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:52428800}

@@ -74,7 +74,7 @@ function JobList({ jobs, selectedJobId, onSelectJob, title }) {
   );
 }
 
-export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, onSelectJob }) {
+export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, onSelectJob, historyLoading }) {
   const currentBatch = jobs.length ? jobs : recentJobs;
   const selectedJob = currentBatch.find((job) => job.id === selectedJobId)
     || recentJobs.find((job) => job.id === selectedJobId)
@@ -107,6 +107,14 @@ export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, 
         <Paragraph className="panel-description">
           결과 검수, 용량 절감 확인, 최근 작업 재확인까지 한 곳에서 이어집니다. 지금 배치와 이전 히스토리를 따로 보지 않아도 됩니다.
         </Paragraph>
+        {historyLoading ? (
+          <Alert
+            type="info"
+            showIcon
+            message="최근 작업 이력을 불러오는 중입니다."
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
 
         <Row gutter={[16, 16]}>
           <Col xs={24} md={8}>
@@ -168,6 +176,8 @@ export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, 
               <Descriptions.Item label="Saved">{formatBytes(selectedJob.savedBytes)}</Descriptions.Item>
               <Descriptions.Item label="Reduction">{formatPercent(selectedJob.reductionRate)}</Descriptions.Item>
               <Descriptions.Item label="Watermark">{selectedJob.watermarkText || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Watermark Style">{selectedJob.watermarkStyle || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Watermark Position">{selectedJob.watermarkPosition || "-"}</Descriptions.Item>
               <Descriptions.Item label="Output Key">{selectedJob.outputObjectKey || "-"}</Descriptions.Item>
             </Descriptions>
 

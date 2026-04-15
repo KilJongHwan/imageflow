@@ -134,6 +134,11 @@ public class ImageJobService {
                 savedJob.getOutputFormat(),
                 savedJob.getAspectRatio(),
                 savedJob.getWatermarkText(),
+                savedJob.getWatermarkAccentText(),
+                savedJob.getWatermarkStyle(),
+                savedJob.getWatermarkPosition(),
+                savedJob.getWatermarkOpacity(),
+                savedJob.getWatermarkScalePercent(),
                 savedJob.getCropMode(),
                 savedJob.getCropX(),
                 savedJob.getCropY(),
@@ -155,6 +160,11 @@ public class ImageJobService {
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkAccentText,
+            String watermarkStyle,
+            String watermarkPosition,
+            Integer watermarkOpacity,
+            Integer watermarkScalePercent,
             String cropMode,
             Integer cropX,
             Integer cropY,
@@ -162,7 +172,25 @@ public class ImageJobService {
             Integer cropHeight
     ) {
         UploadBinary uploadBinary = readImageUpload(file);
-        return createUploadJob(user, uploadBinary, width, height, quality, aspectRatio, watermarkText, cropMode, cropX, cropY, cropWidth, cropHeight);
+        return createUploadJob(
+                user,
+                uploadBinary,
+                width,
+                height,
+                quality,
+                aspectRatio,
+                watermarkText,
+                watermarkAccentText,
+                watermarkStyle,
+                watermarkPosition,
+                watermarkOpacity,
+                watermarkScalePercent,
+                cropMode,
+                cropX,
+                cropY,
+                cropWidth,
+                cropHeight
+        );
     }
 
     private ImageJobResponse createUploadJob(
@@ -173,6 +201,11 @@ public class ImageJobService {
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkAccentText,
+            String watermarkStyle,
+            String watermarkPosition,
+            Integer watermarkOpacity,
+            Integer watermarkScalePercent,
             String cropMode,
             Integer cropX,
             Integer cropY,
@@ -191,6 +224,11 @@ public class ImageJobService {
         imageJob.setOutputFormat(normalizedFormat);
         imageJob.setAspectRatio(normalizeAspectRatio(aspectRatio));
         imageJob.setWatermarkText(normalizeOptionalText(watermarkText));
+        imageJob.setWatermarkAccentText(normalizeOptionalText(watermarkAccentText));
+        imageJob.setWatermarkStyle(normalizeWatermarkStyle(watermarkStyle));
+        imageJob.setWatermarkPosition(normalizeWatermarkPosition(watermarkPosition));
+        imageJob.setWatermarkOpacity(resolveWatermarkOpacity(watermarkOpacity));
+        imageJob.setWatermarkScalePercent(resolveWatermarkScalePercent(watermarkScalePercent));
         imageJob.setCropMode(normalizeCropMode(cropMode));
         imageJob.setCropX(cropX);
         imageJob.setCropY(cropY);
@@ -220,6 +258,11 @@ public class ImageJobService {
                 savedJob.getOutputFormat(),
                 savedJob.getAspectRatio(),
                 savedJob.getWatermarkText(),
+                savedJob.getWatermarkAccentText(),
+                savedJob.getWatermarkStyle(),
+                savedJob.getWatermarkPosition(),
+                savedJob.getWatermarkOpacity(),
+                savedJob.getWatermarkScalePercent(),
                 savedJob.getCropMode(),
                 savedJob.getCropX(),
                 savedJob.getCropY(),
@@ -249,6 +292,11 @@ public class ImageJobService {
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkAccentText,
+            String watermarkStyle,
+            String watermarkPosition,
+            Integer watermarkOpacity,
+            Integer watermarkScalePercent,
             String cropMode,
             Integer cropX,
             Integer cropY,
@@ -268,7 +316,25 @@ public class ImageJobService {
 
         List<ImageJobResponse> jobs = new ArrayList<>();
         for (UploadBinary uploadBinary : uploadBinaries) {
-            jobs.add(createUploadJob(user, uploadBinary, width, height, quality, aspectRatio, watermarkText, cropMode, cropX, cropY, cropWidth, cropHeight));
+            jobs.add(createUploadJob(
+                    user,
+                    uploadBinary,
+                    width,
+                    height,
+                    quality,
+                    aspectRatio,
+                    watermarkText,
+                    watermarkAccentText,
+                    watermarkStyle,
+                    watermarkPosition,
+                    watermarkOpacity,
+                    watermarkScalePercent,
+                    cropMode,
+                    cropX,
+                    cropY,
+                    cropWidth,
+                    cropHeight
+            ));
         }
         return ImageJobBatchResponse.from(jobs);
     }
@@ -396,6 +462,48 @@ public class ImageJobService {
             case "fit", "center-crop", "manual" -> normalized;
             default -> throw new BadRequestException("cropMode must be one of fit, center-crop, manual");
         };
+    }
+
+    private String normalizeWatermarkStyle(String watermarkStyle) {
+        if (watermarkStyle == null || watermarkStyle.isBlank()) {
+            return null;
+        }
+        String normalized = watermarkStyle.trim().toLowerCase();
+        return switch (normalized) {
+            case "signature", "outline", "badge", "plaque", "monogram", "ribbon", "pop", "sticker", "label" -> normalized;
+            default -> throw new BadRequestException("watermarkStyle is not supported");
+        };
+    }
+
+    private String normalizeWatermarkPosition(String watermarkPosition) {
+        if (watermarkPosition == null || watermarkPosition.isBlank()) {
+            return "bottom-right";
+        }
+        String normalized = watermarkPosition.trim().toLowerCase();
+        return switch (normalized) {
+            case "bottom-right", "bottom-left", "top-right", "center" -> normalized;
+            default -> throw new BadRequestException("watermarkPosition must be one of bottom-right, bottom-left, top-right, center");
+        };
+    }
+
+    private Integer resolveWatermarkOpacity(Integer watermarkOpacity) {
+        if (watermarkOpacity == null) {
+            return 56;
+        }
+        if (watermarkOpacity < 20 || watermarkOpacity > 90) {
+            throw new BadRequestException("watermarkOpacity must be between 20 and 90");
+        }
+        return watermarkOpacity;
+    }
+
+    private Integer resolveWatermarkScalePercent(Integer watermarkScalePercent) {
+        if (watermarkScalePercent == null) {
+            return 18;
+        }
+        if (watermarkScalePercent < 10 || watermarkScalePercent > 40) {
+            throw new BadRequestException("watermarkScalePercent must be between 10 and 40");
+        }
+        return watermarkScalePercent;
     }
 
     private void validateManualCrop(String cropMode, Integer cropX, Integer cropY, Integer cropWidth, Integer cropHeight) {

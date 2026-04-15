@@ -59,6 +59,21 @@ public class ImageJob extends BaseTimeEntity {
     @Column(name = "watermark_text", length = 120)
     private String watermarkText;
 
+    @Column(name = "watermark_accent_text", length = 120)
+    private String watermarkAccentText;
+
+    @Column(name = "watermark_style", length = 40)
+    private String watermarkStyle;
+
+    @Column(name = "watermark_position", length = 30)
+    private String watermarkPosition;
+
+    @Column(name = "watermark_opacity")
+    private Integer watermarkOpacity;
+
+    @Column(name = "watermark_scale_percent")
+    private Integer watermarkScalePercent;
+
     @Column(name = "crop_mode", length = 20)
     private String cropMode;
 
@@ -216,6 +231,46 @@ public class ImageJob extends BaseTimeEntity {
 
     public void setCropMode(String cropMode) {
         this.cropMode = cropMode;
+    }
+
+    public String getWatermarkAccentText() {
+        return watermarkAccentText;
+    }
+
+    public void setWatermarkAccentText(String watermarkAccentText) {
+        this.watermarkAccentText = watermarkAccentText;
+    }
+
+    public String getWatermarkStyle() {
+        return watermarkStyle;
+    }
+
+    public void setWatermarkStyle(String watermarkStyle) {
+        this.watermarkStyle = watermarkStyle;
+    }
+
+    public String getWatermarkPosition() {
+        return watermarkPosition;
+    }
+
+    public void setWatermarkPosition(String watermarkPosition) {
+        this.watermarkPosition = watermarkPosition;
+    }
+
+    public Integer getWatermarkOpacity() {
+        return watermarkOpacity;
+    }
+
+    public void setWatermarkOpacity(Integer watermarkOpacity) {
+        this.watermarkOpacity = watermarkOpacity;
+    }
+
+    public Integer getWatermarkScalePercent() {
+        return watermarkScalePercent;
+    }
+
+    public void setWatermarkScalePercent(Integer watermarkScalePercent) {
+        this.watermarkScalePercent = watermarkScalePercent;
     }
 
     public ImageJobStatus getStatus() {

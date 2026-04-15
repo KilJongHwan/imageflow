@@ -13,7 +13,23 @@ function MetricTile({ title, value, suffix }) {
   );
 }
 
-export function HeroSection({ user, onLogout }) {
+function serviceStatusTagColor(healthStatus) {
+  if (healthStatus === "online") {
+    return "success";
+  }
+  if (healthStatus === "checking") {
+    return "processing";
+  }
+  return "error";
+}
+
+export function HeroSection({ user, onLogout, health }) {
+  const backendStateLabel = health.status === "online"
+    ? "Backend Online"
+    : health.status === "checking"
+      ? "Checking Backend"
+      : "Backend Offline";
+
   return (
     <PanelCard
       className="hero-card"
@@ -43,17 +59,36 @@ export function HeroSection({ user, onLogout }) {
               대량 업로드부터 크롭, 압축, 결과 다운로드와 절감률 확인까지 이어서 볼 수 있게 구성했습니다.
             </Paragraph>
             <Space wrap size={[10, 10]}>
+              <Tag color={serviceStatusTagColor(health.status)}>{backendStateLabel}</Tag>
               <Tag icon={<CloudUploadOutlined />} color="default">Batch + ZIP Upload</Tag>
               <Tag icon={<ScissorOutlined />} color="default">Manual Crop</Tag>
               <Tag icon={<ThunderboltOutlined />} color="default">Savings Review</Tag>
             </Space>
+            <div className="hero-service-strip">
+              <div className="service-chip">
+                <span>API</span>
+                <strong>{health.baseUrlLabel}</strong>
+              </div>
+              <div className="service-chip">
+                <span>Mode</span>
+                <strong>{health.processingMode || "-"}</strong>
+              </div>
+              <div className="service-chip">
+                <span>Batch Limit</span>
+                <strong>{health.maxBatchSize || "-"}</strong>
+              </div>
+              <div className="service-chip">
+                <span>Last Check</span>
+                <strong>{health.lastCheckedLabel}</strong>
+              </div>
+            </div>
           </Space>
         </Col>
         <Col xs={24} lg={9}>
           <div className="hero-metric-grid">
-            <MetricTile title="Batch Limit" value="10" suffix="files / run" />
+            <MetricTile title="Batch Limit" value={health.maxBatchSize || 10} suffix="files / run" />
             <MetricTile title="Workspace" value={user ? "Active" : "Login Required"} />
-            <MetricTile title="Export" value="ZIP Download" />
+            <MetricTile title="Processing" value={health.processingMode || "Sync"} />
           </div>
         </Col>
       </Row>

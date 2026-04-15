@@ -1,10 +1,10 @@
 package com.imageflow.backend.domain.image;
 
-import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
@@ -34,7 +34,15 @@ public class ImageProcessingService {
             BufferedImage image = loadSource(message);
             image = applyCrop(image, message);
             image = resize(image, message);
-            image = applyWatermark(image, message.watermarkText());
+            image = applyWatermark(
+                    image,
+                    message.watermarkText(),
+                    message.watermarkAccentText(),
+                    message.watermarkStyle(),
+                    message.watermarkPosition(),
+                    message.watermarkOpacity(),
+                    message.watermarkScalePercent()
+            );
 
             String format = normalizeFormat(message.outputFormat());
             Path outputPath = resolveOutputPath(message.outputFilePath());
@@ -145,7 +153,15 @@ public class ImageProcessingService {
         return image.getSubimage(cropX, cropY, cropWidth, cropHeight);
     }
 
-    private BufferedImage applyWatermark(BufferedImage image, String watermarkText) {
+    private BufferedImage applyWatermark(
+            BufferedImage image,
+            String watermarkText,
+            String watermarkAccentText,
+            String watermarkStyle,
+            String watermarkPosition,
+            Integer watermarkOpacity,
+            Integer watermarkScalePercent
+    ) {
         if (watermarkText == null || watermarkText.isBlank()) {
             return image;
         }
@@ -154,23 +170,120 @@ public class ImageProcessingService {
         Graphics2D graphics = withWatermark.createGraphics();
         graphics.drawImage(image, 0, 0, null);
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        graphics.setFont(new Font("SansSerif", Font.BOLD, Math.max(16, image.getWidth() / 26)));
+        WatermarkLayout layout = resolveWatermarkLayout(image, watermarkPosition, watermarkScalePercent, watermarkText, watermarkAccentText);
+        String style = watermarkStyle == null || watermarkStyle.isBlank() ? "signature" : watermarkStyle;
+        float alpha = Math.max(0.2f, Math.min(0.9f, (watermarkOpacity == null ? 56 : watermarkOpacity) / 100f));
 
-        int padding = Math.max(18, image.getWidth() / 40);
-        int boxHeight = Math.max(42, image.getHeight() / 12);
-        int boxWidth = Math.min(image.getWidth() - padding * 2, Math.max(160, watermarkText.length() * 12));
-        int boxX = image.getWidth() - boxWidth - padding;
-        int boxY = image.getHeight() - boxHeight - padding;
-
-        graphics.setComposite(AlphaComposite.SrcOver.derive(0.52f));
-        graphics.setColor(new Color(17, 24, 39));
-        graphics.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 22, 22);
-
-        graphics.setComposite(AlphaComposite.SrcOver);
-        graphics.setColor(Color.WHITE);
-        graphics.drawString(watermarkText, boxX + 18, boxY + (boxHeight / 2) + 6);
+        drawWatermarkBackground(graphics, layout, style, alpha);
+        drawWatermarkText(graphics, layout, style, watermarkText, watermarkAccentText);
         graphics.dispose();
         return withWatermark;
+    }
+
+    private WatermarkLayout resolveWatermarkLayout(
+            BufferedImage image,
+            String watermarkPosition,
+            Integer watermarkScalePercent,
+            String watermarkText,
+            String watermarkAccentText
+    ) {
+        int padding = Math.max(20, image.getWidth() / 34);
+        int scalePercent = watermarkScalePercent == null ? 18 : watermarkScalePercent;
+        int boxWidth = Math.max(180, Math.min(image.getWidth() - padding * 2, image.getWidth() * scalePercent / 100));
+        int boxHeight = watermarkAccentText == null || watermarkAccentText.isBlank()
+                ? Math.max(54, image.getHeight() / 10)
+                : Math.max(74, image.getHeight() / 8);
+
+        int x;
+        int y;
+        String normalizedPosition = watermarkPosition == null || watermarkPosition.isBlank() ? "bottom-right" : watermarkPosition;
+
+        switch (normalizedPosition) {
+            case "bottom-left" -> {
+                x = padding;
+                y = image.getHeight() - boxHeight - padding;
+            }
+            case "top-right" -> {
+                x = image.getWidth() - boxWidth - padding;
+                y = padding;
+            }
+            case "center" -> {
+                x = (image.getWidth() - boxWidth) / 2;
+                y = (image.getHeight() - boxHeight) / 2;
+            }
+            default -> {
+                x = image.getWidth() - boxWidth - padding;
+                y = image.getHeight() - boxHeight - padding;
+            }
+        }
+
+        int titleFontSize = Math.max(18, boxHeight / (watermarkAccentText == null || watermarkAccentText.isBlank() ? 2 : 3));
+        int accentFontSize = Math.max(12, titleFontSize - 6);
+        return new WatermarkLayout(x, y, boxWidth, boxHeight, padding, titleFontSize, accentFontSize);
+    }
+
+    private void drawWatermarkBackground(Graphics2D graphics, WatermarkLayout layout, String style, float alpha) {
+        Color backgroundColor = switch (style) {
+            case "outline" -> new Color(15, 23, 42, Math.round(alpha * 80));
+            case "badge" -> new Color(17, 24, 39, Math.round(alpha * 170));
+            case "plaque" -> new Color(17, 24, 39, Math.round(alpha * 190));
+            case "monogram" -> new Color(17, 24, 39, Math.round(alpha * 120));
+            case "ribbon" -> new Color(31, 41, 55, Math.round(alpha * 150));
+            case "pop" -> new Color(190, 24, 93, Math.round(alpha * 180));
+            case "sticker" -> new Color(124, 45, 18, Math.round(alpha * 160));
+            case "label" -> new Color(29, 78, 216, Math.round(alpha * 170));
+            default -> new Color(15, 23, 42, Math.round(alpha * 145));
+        };
+
+        if ("monogram".equals(style)) {
+            graphics.setColor(backgroundColor);
+            graphics.fillOval(layout.x(), layout.y(), layout.width(), layout.height());
+            return;
+        }
+
+        if ("ribbon".equals(style)) {
+            graphics.setColor(backgroundColor);
+            graphics.fill(new RoundRectangle2D.Float(layout.x(), layout.y(), layout.width(), layout.height(), 30, 30));
+            graphics.fillRect(layout.x() + 18, layout.y() + layout.height() - 18, Math.max(40, layout.width() / 4), 14);
+            return;
+        }
+
+        graphics.setColor(backgroundColor);
+        graphics.fill(new RoundRectangle2D.Float(layout.x(), layout.y(), layout.width(), layout.height(), 24, 24));
+
+        if ("outline".equals(style)) {
+            graphics.setColor(new Color(191, 219, 254, 170));
+            graphics.draw(new RoundRectangle2D.Float(layout.x(), layout.y(), layout.width(), layout.height(), 24, 24));
+        }
+    }
+
+    private void drawWatermarkText(Graphics2D graphics, WatermarkLayout layout, String style, String watermarkText, String watermarkAccentText) {
+        graphics.setFont(new Font("SansSerif", Font.BOLD, layout.titleFontSize()));
+        Color titleColor = switch (style) {
+            case "sticker" -> new Color(255, 247, 237);
+            case "label" -> new Color(255, 255, 255);
+            case "pop" -> new Color(255, 255, 255);
+            default -> Color.WHITE;
+        };
+        graphics.setColor(titleColor);
+        int titleX = layout.x() + 18;
+        int titleY = layout.y() + Math.max(28, layout.titleFontSize() + 8);
+        graphics.drawString(watermarkText, titleX, titleY);
+
+        if (watermarkAccentText != null && !watermarkAccentText.isBlank()) {
+            graphics.setFont(new Font("SansSerif", Font.PLAIN, layout.accentFontSize()));
+            Color accentColor = switch (style) {
+                case "plaque", "monogram", "ribbon" -> new Color(245, 213, 139);
+                case "pop" -> new Color(253, 230, 138);
+                case "label" -> new Color(191, 219, 254);
+                default -> new Color(219, 234, 254);
+            };
+            graphics.setColor(accentColor);
+            graphics.drawString(watermarkAccentText, titleX, titleY + layout.accentFontSize() + 12);
+        }
+    }
+
+    private record WatermarkLayout(int x, int y, int width, int height, int padding, int titleFontSize, int accentFontSize) {
     }
 
     private BufferedImage convertIfNeeded(BufferedImage image, String format) {

@@ -4,6 +4,7 @@ import { InboxOutlined } from "@ant-design/icons";
 import { CropSelector } from "./CropSelector";
 import { MarketplacePresetStrip } from "./MarketplacePresetStrip";
 import { UploadQueue } from "./UploadQueue";
+import { WatermarkStudio } from "./WatermarkStudio";
 import { PanelCard } from "./ui/PanelCard";
 
 const { Dragger } = Upload;
@@ -31,11 +32,16 @@ export function OptimizationForm({
   error,
   statusMessage,
   user,
+  submitLoading,
+  watermarkGenerateLoading,
+  watermarkGenerateError,
+  health,
   onBaseUrlChange,
   onFileChange,
   onFileRemove,
   onFilesClear,
   onOptionsChange,
+  onGenerateWatermarkPresets,
   onSubmit
 }) {
   const acceptedFileTypes = ".jpg,.jpeg,.png,.webp,.zip";
@@ -87,6 +93,7 @@ export function OptimizationForm({
     type: file.type,
     originFileObj: file
   }));
+  const fileCountLabel = `${files.length} file${files.length === 1 ? "" : "s"} ready`;
 
   return (
     <Space direction="vertical" size={18} className="full-width">
@@ -98,6 +105,15 @@ export function OptimizationForm({
         <Paragraph className="panel-description">
           셀러가 실제로 쓰는 작업실처럼, 채널 프리셋을 고른 뒤 작업 파일을 모으고, 출력 규칙을 조정한 다음 바로 배치를 처리하는 흐름으로 구성했습니다.
         </Paragraph>
+
+        <Alert
+          type={health.status === "online" ? "success" : health.status === "checking" ? "info" : "warning"}
+          showIcon
+          message={health.summary}
+          description={health.status === "online"
+            ? `현재 ${health.processingMode || "sync"} 모드로 연결되어 있으며, 한 번에 ${health.maxBatchSize || "-"}개까지 처리할 수 있습니다.`
+            : health.description}
+        />
 
         <Space direction="vertical" size={18} className="full-width">
           <div>
@@ -136,6 +152,14 @@ export function OptimizationForm({
         </Space>
       </PanelCard>
 
+      <WatermarkStudio
+        options={options}
+        generateLoading={watermarkGenerateLoading}
+        generateError={watermarkGenerateError}
+        onGenerate={onGenerateWatermarkPresets}
+        onOptionsChange={onOptionsChange}
+      />
+
       <PanelCard className="workspace-card" title="Output Rules" extra={<Text type="secondary">Compression, crop, watermark</Text>}>
         <Form layout="vertical" onFinish={onSubmit}>
           <Row gutter={[16, 0]}>
@@ -168,8 +192,8 @@ export function OptimizationForm({
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item label="Watermark">
-                <Input value={options.watermarkText} placeholder="Optional brand mark" onChange={(event) => updateOption("watermarkText", event.target.value)} />
+              <Form.Item label="Selected Watermark">
+                <Input value={options.watermarkText} placeholder="Generate or type brand mark" onChange={(event) => updateOption("watermarkText", event.target.value)} />
               </Form.Item>
             </Col>
           </Row>
@@ -197,14 +221,15 @@ export function OptimizationForm({
               <div className="rule-footer-copy">
                 <Text strong>Current intent</Text>
                 <Paragraph type="secondary">
-                  {options.height ? `${options.width} x ${options.height}` : `${options.width || "Auto"} width`} / Q{options.quality || "-"} / {options.cropMode}
+                  {options.height ? `${options.width} x ${options.height}` : `${options.width || "Auto"} width`} / Q{options.quality || "-"} / {options.cropMode} / {options.watermarkStyle || "basic watermark"}
                 </Paragraph>
             </div>
             <div className="rule-footer-actions">
               <Input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} addonBefore="API" />
-              <Button type="primary" htmlType="submit" size="large">
-                Optimize Current Batch
+              <Button type="primary" htmlType="submit" size="large" loading={submitLoading} disabled={health.status !== "online"}>
+                {submitLoading ? "Processing Batch" : "Optimize Current Batch"}
               </Button>
+              <Text type="secondary">{fileCountLabel}</Text>
             </div>
           </div>
         </Form>

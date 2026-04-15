@@ -4,7 +4,7 @@ import { PanelCard } from "./ui/PanelCard";
 
 const { Paragraph, Text } = Typography;
 
-export function AuthPanel({ baseUrl, error, onBaseUrlChange, onSubmit }) {
+export function AuthPanel({ baseUrl, error, onBaseUrlChange, onSubmit, submitLoading, health }) {
   const [form] = Form.useForm();
   const mode = Form.useWatch("mode", form) || "login";
 
@@ -25,6 +25,13 @@ export function AuthPanel({ baseUrl, error, onBaseUrlChange, onSubmit }) {
         <Paragraph className="panel-description">
           먼저 인증을 통과해야 업로드 워크스페이스가 열립니다. 익명 업로드를 막고, 작업 이력과 다운로드를 계정 기준으로 유지합니다.
         </Paragraph>
+
+        <Alert
+          type={health.status === "online" ? "success" : health.status === "checking" ? "info" : "warning"}
+          showIcon
+          message={health.summary}
+          description={health.description}
+        />
 
         <Form
           form={form}
@@ -62,7 +69,7 @@ export function AuthPanel({ baseUrl, error, onBaseUrlChange, onSubmit }) {
             <Input.Password placeholder="8자 이상 권장" />
           </Form.Item>
 
-          <Button type="primary" htmlType="submit" size="large" block>
+          <Button type="primary" htmlType="submit" size="large" block loading={submitLoading} disabled={health.status === "offline"}>
             {mode === "login" ? "Open Seller Workspace" : "Create Seller Account"}
           </Button>
         </Form>

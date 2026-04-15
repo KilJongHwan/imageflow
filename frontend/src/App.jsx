@@ -8,6 +8,7 @@ import { ResultPanel } from "./components/ResultPanel";
 
 const POLL_INTERVAL_MS = 2500;
 const TOKEN_STORAGE_KEY = "imageflow.jwt";
+const API_BASE_URL_STORAGE_KEY = "imageflow.api-base-url";
 
 const initialOptions = {
   presetId: "kurly",
@@ -16,6 +17,15 @@ const initialOptions = {
   quality: "82",
   aspectRatio: "original",
   watermarkText: "",
+  watermarkBrandText: "",
+  watermarkAccentText: "",
+  watermarkTone: "clean",
+  watermarkPresetId: "",
+  watermarkPresets: [],
+  watermarkStyle: "signature",
+  watermarkPosition: "bottom-right",
+  watermarkOpacity: "56",
+  watermarkScalePercent: "18",
   cropMode: "fit",
   cropX: "",
   cropY: "",
@@ -24,7 +34,7 @@ const initialOptions = {
 };
 
 export default function App() {
-  const [baseUrl, setBaseUrl] = useState(import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
+  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem(API_BASE_URL_STORAGE_KEY) || import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
   const [files, setFiles] = useState([]);
@@ -35,14 +45,50 @@ export default function App() {
   const [selectedJobId, setSelectedJobId] = useState("");
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [watermarkGenerateLoading, setWatermarkGenerateLoading] = useState(false);
+  const [watermarkGenerateError, setWatermarkGenerateError] = useState("");
+  const [health, setHealth] = useState({
+    status: "checking",
+    processingMode: "",
+    maxBatchSize: null,
+    queueEnabled: false,
+    lastCheckedAt: "",
+    message: ""
+  });
   const pollTimerRef = useRef(null);
   const pollingEnabledRef = useRef(false);
   const dragDepthRef = useRef(0);
+  const healthCheckTimerRef = useRef(null);
   const [pageDropActive, setPageDropActive] = useState(false);
 
   useEffect(() => () => {
     stopPolling();
+    if (healthCheckTimerRef.current) {
+      clearTimeout(healthCheckTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(API_BASE_URL_STORAGE_KEY, baseUrl);
+    setHealth((current) => ({ ...current, status: "checking" }));
+
+    if (healthCheckTimerRef.current) {
+      clearTimeout(healthCheckTimerRef.current);
+    }
+
+    healthCheckTimerRef.current = setTimeout(() => {
+      checkHealth();
+    }, 300);
+
+    return () => {
+      if (healthCheckTimerRef.current) {
+        clearTimeout(healthCheckTimerRef.current);
+      }
+    };
+  }, [baseUrl]);
 
   useEffect(() => {
     if (!token) {
@@ -226,6 +272,34 @@ export default function App() {
     return payload;
   }
 
+  async function checkHealth() {
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/health`);
+      if (!response.ok) {
+        throw new Error(`health check failed with ${response.status}`);
+      }
+
+      const payload = await response.json();
+      setHealth({
+        status: "online",
+        processingMode: payload.processingMode || "",
+        maxBatchSize: payload.maxBatchSize ?? null,
+        queueEnabled: Boolean(payload.queueEnabled),
+        lastCheckedAt: payload.timestamp || new Date().toISOString(),
+        message: ""
+      });
+    } catch (_error) {
+      setHealth({
+        status: "offline",
+        processingMode: "",
+        maxBatchSize: null,
+        queueEnabled: false,
+        lastCheckedAt: new Date().toISOString(),
+        message: "API health endpoint에 연결할 수 없습니다."
+      });
+    }
+  }
+
   async function restoreSession(accessToken) {
     try {
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/auth/me`, {
@@ -251,6 +325,7 @@ export default function App() {
   }
 
   async function loadRecentJobs() {
+    setHistoryLoading(true);
     try {
       const response = await request("/api/image-jobs");
       setRecentJobs(response);
@@ -262,6 +337,51 @@ export default function App() {
       });
     } catch (_error) {
       // Keep the workspace usable even if history refresh fails.
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function handleGenerateWatermarkPresets(payload) {
+    setWatermarkGenerateError("");
+    setWatermarkGenerateLoading(true);
+
+    try {
+      const presets = await request("/api/watermarks/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      setOptions((current) => {
+        const firstPreset = presets[0];
+        if (!firstPreset) {
+          return {
+            ...current,
+            watermarkPresets: []
+          };
+        }
+
+        return {
+          ...current,
+          watermarkBrandText: payload.brandText,
+          watermarkAccentText: payload.accentText || "",
+          watermarkTone: payload.tone,
+          watermarkPresets: presets,
+          watermarkPresetId: firstPreset.id,
+          watermarkText: firstPreset.brandText,
+          watermarkStyle: firstPreset.style,
+          watermarkPosition: firstPreset.position,
+          watermarkOpacity: String(firstPreset.recommendedOpacity),
+          watermarkScalePercent: String(firstPreset.recommendedScalePercent)
+        };
+      });
+    } catch (generateError) {
+      setWatermarkGenerateError(generateError.message);
+    } finally {
+      setWatermarkGenerateLoading(false);
     }
   }
 
@@ -278,6 +398,7 @@ export default function App() {
   async function handleAuthSubmit(mode, credentials) {
     setAuthError("");
     setError("");
+    setAuthLoading(true);
 
     try {
       const payload = await request(`/api/auth/${mode}`, {
@@ -293,6 +414,8 @@ export default function App() {
       setStatusMessage("로그인이 완료되었습니다. 이미지를 올리면 바로 처리됩니다.");
     } catch (submitError) {
       setAuthError(submitError.message);
+    } finally {
+      setAuthLoading(false);
     }
   }
 
@@ -327,6 +450,7 @@ export default function App() {
     setError("");
     setJobs([]);
     stopPolling();
+    setSubmitLoading(true);
     setStatusMessage("원본을 업로드하고 처리 작업을 준비하는 중입니다.");
 
     const formData = new FormData();
@@ -340,6 +464,11 @@ export default function App() {
     if (options.quality) formData.append("quality", options.quality);
     if (options.aspectRatio) formData.append("aspectRatio", options.aspectRatio);
     if (options.watermarkText) formData.append("watermarkText", options.watermarkText);
+    if (options.watermarkAccentText) formData.append("watermarkAccentText", options.watermarkAccentText);
+    if (options.watermarkStyle) formData.append("watermarkStyle", options.watermarkStyle);
+    if (options.watermarkPosition) formData.append("watermarkPosition", options.watermarkPosition);
+    if (options.watermarkOpacity) formData.append("watermarkOpacity", options.watermarkOpacity);
+    if (options.watermarkScalePercent) formData.append("watermarkScalePercent", options.watermarkScalePercent);
     if (options.cropMode) formData.append("cropMode", options.cropMode);
     if (options.cropX) formData.append("cropX", options.cropX);
     if (options.cropY) formData.append("cropY", options.cropY);
@@ -370,6 +499,8 @@ export default function App() {
     } catch (submitError) {
       setError(submitError.message);
       setStatusMessage("요청을 완료하지 못했습니다.");
+    } finally {
+      setSubmitLoading(false);
     }
   }
 
@@ -441,6 +572,22 @@ export default function App() {
     }
   }
 
+  const healthView = {
+    ...health,
+    baseUrlLabel: baseUrl.replace(/^https?:\/\//, ""),
+    lastCheckedLabel: health.lastCheckedAt
+      ? new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(health.lastCheckedAt))
+      : "-",
+    summary: health.status === "online"
+      ? "백엔드와 정상 연결되었습니다."
+      : health.status === "checking"
+        ? "백엔드 연결 상태를 확인하는 중입니다."
+        : "백엔드 연결에 실패했습니다.",
+    description: health.status === "online"
+      ? `${health.processingMode || "sync"} 모드 / 배치 최대 ${health.maxBatchSize || "-"}개 / ${health.queueEnabled ? "queue enabled" : "queue disabled"}`
+      : "API 주소와 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
+  };
+
   return (
     <ConfigProvider
       theme={{
@@ -465,7 +612,7 @@ export default function App() {
           </div>
         ) : null}
 
-        <HeroSection user={user} onLogout={handleLogout} />
+        <HeroSection user={user} onLogout={handleLogout} health={healthView} />
 
         <main className="main-grid">
           {user ? (
@@ -477,11 +624,16 @@ export default function App() {
                 error={error}
                 statusMessage={statusMessage}
                 user={user}
+                submitLoading={submitLoading}
+                watermarkGenerateLoading={watermarkGenerateLoading}
+                watermarkGenerateError={watermarkGenerateError}
+                health={healthView}
                 onBaseUrlChange={setBaseUrl}
                 onFileChange={handleFilesSelected}
                 onFileRemove={handleRemoveFile}
                 onFilesClear={handleClearFiles}
                 onOptionsChange={setOptions}
+                onGenerateWatermarkPresets={handleGenerateWatermarkPresets}
                 onSubmit={handleSubmit}
               />
             </div>
@@ -490,6 +642,8 @@ export default function App() {
               <AuthPanel
                 baseUrl={baseUrl}
                 error={authError}
+                submitLoading={authLoading}
+                health={healthView}
                 onBaseUrlChange={setBaseUrl}
                 onSubmit={handleAuthSubmit}
               />
@@ -501,6 +655,7 @@ export default function App() {
               jobs={jobs}
               recentJobs={recentJobs}
               selectedJobId={selectedJobId}
+              historyLoading={historyLoading}
               onDownloadBatch={handleDownloadBatch}
               onSelectJob={setSelectedJobId}
             />
