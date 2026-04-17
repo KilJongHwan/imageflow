@@ -2,6 +2,7 @@ package com.imageflow.backend;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -19,10 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+
+import com.imageflow.backend.common.storage.StorageService;
+import com.imageflow.backend.queue.ImageJobQueuePublisher;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -30,6 +36,12 @@ class ApiFlowIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private StorageService storageService;
+
+    @MockBean
+    private ImageJobQueuePublisher imageJobQueuePublisher;
 
     @Test
     void signsUpUploadsImageJobAndReadsItBack() throws Exception {
@@ -62,7 +74,7 @@ class ApiFlowIntegrationTest {
                         .param("quality", "70"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").isNotEmpty())
-                .andExpect(jsonPath("$.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.creditsUsed").value(1))
                 .andExpect(jsonPath("$.targetWidth").value(400))
                 .andExpect(jsonPath("$.quality").value(70))
@@ -70,6 +82,20 @@ class ApiFlowIntegrationTest {
                 .andReturn();
 
         String imageJobId = JsonTestUtils.read(createImageJobResult.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(patch("/api/image-jobs/{imageJobId}/result", imageJobId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "SUCCEEDED",
+                                  "resultImageUrl": "http://localhost/result.jpg",
+                                  "outputObjectKey": "optimized/%s.jpg",
+                                  "sourceFileSizeBytes": 1200,
+                                  "resultFileSizeBytes": 800
+                                }
+                                """.formatted(imageJobId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
 
         mockMvc.perform(get("/api/image-jobs/{imageJobId}", imageJobId)
                         .header("Authorization", "Bearer " + token))
@@ -80,7 +106,7 @@ class ApiFlowIntegrationTest {
     }
 
     @Test
-    void rejectsPromptBasedImageGenerationInSyncMode() throws Exception {
+    void createsPromptBasedImageGenerationJobWhenWorkerQueueIsEnabled() throws Exception {
         MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -103,9 +129,8 @@ class ApiFlowIntegrationTest {
                                   "creditsToUse": 1
                                 }
                                 """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.message").value("prompt-based image generation is unavailable in sync mode"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("QUEUED"));
     }
 
     @Test
@@ -204,11 +229,14 @@ class ApiFlowIntegrationTest {
                         .param("quality", "80"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.totalCount").value(2))
-                .andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.succeededCount").value(0))
                 .andReturn();
 
         String firstJobId = JsonTestUtils.read(uploadResult.getResponse().getContentAsString(), "jobs[0].id");
         String secondJobId = JsonTestUtils.read(uploadResult.getResponse().getContentAsString(), "jobs[1].id");
+
+        markJobSucceeded(firstJobId, "optimized/" + firstJobId + ".jpg");
+        markJobSucceeded(secondJobId, "optimized/" + secondJobId + ".jpg");
 
         mockMvc.perform(get("/api/image-jobs/download")
                         .header("Authorization", "Bearer " + token)
@@ -292,5 +320,27 @@ class ApiFlowIntegrationTest {
             );
         }
         return files;
+    }
+
+    private void markJobSucceeded(String imageJobId, String outputObjectKey) throws Exception {
+        String filename = fileNameOf(outputObjectKey);
+        Files.write(storageService.resolveOutputFile(filename), pngBytes());
+        mockMvc.perform(patch("/api/image-jobs/{imageJobId}/result", imageJobId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "SUCCEEDED",
+                                  "resultImageUrl": "http://localhost/%s",
+                                  "outputObjectKey": "%s",
+                                  "sourceFileSizeBytes": 1200,
+                                  "resultFileSizeBytes": 800
+                                }
+                                """.formatted(filename, outputObjectKey)))
+                .andExpect(status().isOk());
+    }
+
+    private String fileNameOf(String path) {
+        int lastSlash = path.lastIndexOf('/');
+        return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 }

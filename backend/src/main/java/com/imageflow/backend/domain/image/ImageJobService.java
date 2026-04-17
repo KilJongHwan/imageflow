@@ -45,10 +45,8 @@ public class ImageJobService {
     private final ImageJobRepository imageJobRepository;
     private final UsageRecordRepository usageRecordRepository;
     private final ImageJobQueuePublisher imageJobQueuePublisher;
-    private final ImageProcessingService imageProcessingService;
     private final StorageService storageService;
     private final String publicBaseUrl;
-    private final String processingMode;
     private final boolean queueEnabled;
     private final int maxBatchSize;
     private final int maxZipEntryCount;
@@ -59,10 +57,8 @@ public class ImageJobService {
             ImageJobRepository imageJobRepository,
             UsageRecordRepository usageRecordRepository,
             ImageJobQueuePublisher imageJobQueuePublisher,
-            ImageProcessingService imageProcessingService,
             StorageService storageService,
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl,
-            @Value("${app.processing.mode:sync}") String processingMode,
             @Value("${app.queue.enabled:true}") boolean queueEnabled,
             @Value("${app.upload.max-batch-size:10}") int maxBatchSize,
             @Value("${app.upload.max-zip-entry-count:32}") int maxZipEntryCount,
@@ -72,10 +68,8 @@ public class ImageJobService {
         this.imageJobRepository = imageJobRepository;
         this.usageRecordRepository = usageRecordRepository;
         this.imageJobQueuePublisher = imageJobQueuePublisher;
-        this.imageProcessingService = imageProcessingService;
         this.storageService = storageService;
         this.publicBaseUrl = publicBaseUrl;
-        this.processingMode = processingMode;
         this.queueEnabled = queueEnabled;
         this.maxBatchSize = maxBatchSize;
         this.maxZipEntryCount = maxZipEntryCount;
@@ -84,7 +78,7 @@ public class ImageJobService {
     }
 
     public ImageJobResponse create(User user, CreateImageJobRequest request) {
-        validatePromptGenerationMode();
+        validateQueueEnabled("prompt-based image generation");
         if (request.prompt() == null || request.prompt().isBlank()) {
             throw new BadRequestException("prompt is required");
         }
@@ -134,7 +128,10 @@ public class ImageJobService {
                 savedJob.getOutputFormat(),
                 savedJob.getAspectRatio(),
                 savedJob.getWatermarkText(),
+                savedJob.getWatermarkFontFamily(),
                 savedJob.getWatermarkAccentText(),
+                savedJob.getWatermarkImageUrl(),
+                null,
                 savedJob.getWatermarkStyle(),
                 savedJob.getWatermarkPosition(),
                 savedJob.getWatermarkOpacity(),
@@ -155,11 +152,13 @@ public class ImageJobService {
     public ImageJobResponse createUploadJob(
             User user,
             MultipartFile file,
+            MultipartFile watermarkImage,
             Integer width,
             Integer height,
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkFontFamily,
             String watermarkAccentText,
             String watermarkStyle,
             String watermarkPosition,
@@ -175,11 +174,13 @@ public class ImageJobService {
         return createUploadJob(
                 user,
                 uploadBinary,
+                watermarkImage == null || watermarkImage.isEmpty() ? null : readImageUpload(watermarkImage),
                 width,
                 height,
                 quality,
                 aspectRatio,
                 watermarkText,
+                watermarkFontFamily,
                 watermarkAccentText,
                 watermarkStyle,
                 watermarkPosition,
@@ -196,11 +197,13 @@ public class ImageJobService {
     private ImageJobResponse createUploadJob(
             User user,
             UploadBinary uploadBinary,
+            UploadBinary watermarkUploadBinary,
             Integer width,
             Integer height,
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkFontFamily,
             String watermarkAccentText,
             String watermarkStyle,
             String watermarkPosition,
@@ -212,7 +215,9 @@ public class ImageJobService {
             Integer cropWidth,
             Integer cropHeight
     ) {
+        validateQueueEnabled("image optimization");
         StoredFile storedFile = storageService.storeInput(uploadBinary);
+        StoredFile watermarkStoredFile = watermarkUploadBinary == null ? null : storageService.storeInput(watermarkUploadBinary);
         String normalizedFormat = "jpg";
         String outputFilename = UUID.randomUUID() + "." + normalizedFormat;
         Path outputPath = storageService.createOutputPath(outputFilename);
@@ -224,7 +229,9 @@ public class ImageJobService {
         imageJob.setOutputFormat(normalizedFormat);
         imageJob.setAspectRatio(normalizeAspectRatio(aspectRatio));
         imageJob.setWatermarkText(normalizeOptionalText(watermarkText));
+        imageJob.setWatermarkFontFamily(normalizeWatermarkFontFamily(watermarkFontFamily));
         imageJob.setWatermarkAccentText(normalizeOptionalText(watermarkAccentText));
+        imageJob.setWatermarkImageUrl(watermarkStoredFile == null ? null : publicUrl("input", watermarkStoredFile.filename()));
         imageJob.setWatermarkStyle(normalizeWatermarkStyle(watermarkStyle));
         imageJob.setWatermarkPosition(normalizeWatermarkPosition(watermarkPosition));
         imageJob.setWatermarkOpacity(resolveWatermarkOpacity(watermarkOpacity));
@@ -258,7 +265,10 @@ public class ImageJobService {
                 savedJob.getOutputFormat(),
                 savedJob.getAspectRatio(),
                 savedJob.getWatermarkText(),
+                savedJob.getWatermarkFontFamily(),
                 savedJob.getWatermarkAccentText(),
+                savedJob.getWatermarkImageUrl(),
+                watermarkStoredFile == null ? null : watermarkStoredFile.path().toString(),
                 savedJob.getWatermarkStyle(),
                 savedJob.getWatermarkPosition(),
                 savedJob.getWatermarkOpacity(),
@@ -273,13 +283,7 @@ public class ImageJobService {
                 publicUrl("output", outputFilename)
         );
 
-        if ("sync".equalsIgnoreCase(processingMode)) {
-            savedJob.startProcessing();
-            ImageProcessingService.ProcessedImageResult result = imageProcessingService.process(queueMessage);
-            savedJob.markSuccess(result.resultImageUrl(), result.outputObjectKey(), result.sourceFileSizeBytes(), result.resultFileSizeBytes());
-        } else {
-            imageJobQueuePublisher.publish(queueMessage);
-        }
+        imageJobQueuePublisher.publish(queueMessage);
 
         return ImageJobResponse.from(savedJob);
     }
@@ -287,11 +291,13 @@ public class ImageJobService {
     public ImageJobBatchResponse createUploadJobs(
             User user,
             List<MultipartFile> files,
+            MultipartFile watermarkImage,
             Integer width,
             Integer height,
             Integer quality,
             String aspectRatio,
             String watermarkText,
+            String watermarkFontFamily,
             String watermarkAccentText,
             String watermarkStyle,
             String watermarkPosition,
@@ -307,11 +313,15 @@ public class ImageJobService {
             throw new BadRequestException("at least one image file is required");
         }
         List<UploadBinary> uploadBinaries = expandUploadFiles(files);
+        UploadBinary watermarkUploadBinary = watermarkImage == null || watermarkImage.isEmpty() ? null : readImageUpload(watermarkImage);
         if (uploadBinaries.size() > maxBatchSize) {
             throw new BadRequestException("batch upload supports up to " + maxBatchSize + " images");
         }
         if ("manual".equals(normalizeCropMode(cropMode)) && uploadBinaries.size() > 1) {
             throw new BadRequestException("manual crop is available only when uploading a single image");
+        }
+        if (watermarkFontFamily != null && !watermarkFontFamily.isBlank()) {
+            normalizeWatermarkFontFamily(watermarkFontFamily);
         }
 
         List<ImageJobResponse> jobs = new ArrayList<>();
@@ -319,11 +329,13 @@ public class ImageJobService {
             jobs.add(createUploadJob(
                     user,
                     uploadBinary,
+                    watermarkUploadBinary,
                     width,
                     height,
                     quality,
                     aspectRatio,
                     watermarkText,
+                    watermarkFontFamily,
                     watermarkAccentText,
                     watermarkStyle,
                     watermarkPosition,
@@ -475,6 +487,17 @@ public class ImageJobService {
         };
     }
 
+    private String normalizeWatermarkFontFamily(String watermarkFontFamily) {
+        if (watermarkFontFamily == null || watermarkFontFamily.isBlank()) {
+            return "sans";
+        }
+        String normalized = watermarkFontFamily.trim().toLowerCase();
+        return switch (normalized) {
+            case "sans", "serif", "mono", "script", "display" -> normalized;
+            default -> throw new BadRequestException("watermarkFontFamily is not supported");
+        };
+    }
+
     private String normalizeWatermarkPosition(String watermarkPosition) {
         if (watermarkPosition == null || watermarkPosition.isBlank()) {
             return "bottom-right";
@@ -528,9 +551,9 @@ public class ImageJobService {
         return value.trim();
     }
 
-    private void validatePromptGenerationMode() {
-        if ("sync".equalsIgnoreCase(processingMode) || !queueEnabled) {
-            throw new BadRequestException("prompt-based image generation is unavailable in sync mode");
+    private void validateQueueEnabled(String capability) {
+        if (!queueEnabled) {
+            throw new BadRequestException(capability + " requires the Python worker queue to be enabled");
         }
     }
 

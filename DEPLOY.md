@@ -10,8 +10,7 @@ This project is prepared for demo-style free deployment with:
 
 This setup is designed for portfolio/demo usage, not always-on production.
 
-- backend processing runs in `sync` mode
-- Redis and the Python worker are not required for deployment
+- backend API orchestration depends on Redis + the Python worker
 - uploaded/generated files are stored in temporary disk on the backend host
 - files may disappear after redeploy or instance restart
 
@@ -61,13 +60,13 @@ After both deploys:
 
 1. Open the Vercel frontend URL
 2. Upload a small image first
-3. Confirm the optimized result appears
+3. Confirm the worker picks up the job and the optimized result appears
 
 ## 5. Known Demo Limits
 
 - first backend request may be slow because Render free services sleep
 - uploaded/output files are temporary
-- no Redis worker is used in deploy mode
+- worker and Redis must be reachable for image jobs to finish
 - very large files may fail depending on platform limits
 
 ## 6. Practical Checklist

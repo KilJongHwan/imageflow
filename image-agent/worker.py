@@ -57,17 +57,7 @@ def main():
 def optimize_image(job):
     image = load_source_image(job)
     image = apply_crop_mode(image, job)
-
-    target_width = job.get("targetWidth")
-    target_height = job.get("targetHeight")
-    if target_width:
-        width = int(target_width)
-        if target_height:
-            height = int(target_height)
-        else:
-            ratio = width / image.width
-            height = max(1, int(image.height * ratio))
-        image = image.resize((width, height))
+    image = resize_image(image, job)
 
     output_format = normalize_format(job.get("outputFormat"))
     quality = int(job.get("quality") or 80)
@@ -79,7 +69,10 @@ def optimize_image(job):
     image = apply_watermark(
         image,
         job.get("watermarkText"),
+        job.get("watermarkFontFamily"),
         job.get("watermarkAccentText"),
+        job.get("watermarkImageUrl"),
+        job.get("watermarkImageFilePath"),
         job.get("watermarkStyle"),
         job.get("watermarkPosition"),
         job.get("watermarkOpacity"),
@@ -96,6 +89,28 @@ def optimize_image(job):
         "sourceFileSizeBytes": source_size_bytes(job),
         "resultFileSizeBytes": len(output_buffer.getvalue()),
     }
+
+
+def resize_image(image, job):
+    target_width = job.get("targetWidth")
+    target_height = job.get("targetHeight")
+
+    if not target_width and not target_height:
+        return image
+
+    if target_width and target_height:
+        width = int(target_width)
+        height = int(target_height)
+    elif target_width:
+        width = int(target_width)
+        ratio = width / image.width
+        height = max(1, int(round(image.height * ratio)))
+    else:
+        height = int(target_height)
+        ratio = height / image.height
+        width = max(1, int(round(image.width * ratio)))
+
+    return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
 def normalize_format(output_format):
@@ -153,30 +168,52 @@ def apply_manual_crop(image, job):
     return image.crop((crop_x, crop_y, crop_x + crop_width, crop_y + crop_height))
 
 
-def apply_watermark(image, watermark_text, accent_text, watermark_style, watermark_position, watermark_opacity, watermark_scale_percent):
-    if not watermark_text:
+def apply_watermark(
+    image,
+    watermark_text,
+    watermark_font_family,
+    accent_text,
+    watermark_image_url,
+    watermark_image_file_path,
+    watermark_style,
+    watermark_position,
+    watermark_opacity,
+    watermark_scale_percent,
+):
+    if not watermark_text and not watermark_image_url and not watermark_image_file_path:
         return image
 
     if image.mode != "RGBA":
         image = image.convert("RGBA")
 
+    if watermark_image_url or watermark_image_file_path:
+        return apply_image_watermark(
+            image,
+            watermark_image_url,
+            watermark_image_file_path,
+            watermark_position,
+            watermark_opacity,
+            watermark_scale_percent,
+        )
+
     overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(overlay)
-    title_font = ImageFont.load_default()
-    accent_font = ImageFont.load_default()
     style = (watermark_style or "signature").strip().lower()
     position = (watermark_position or "bottom-right").strip().lower()
     opacity = max(20, min(90, int(watermark_opacity or 56)))
     scale_percent = max(10, min(40, int(watermark_scale_percent or 18)))
     accent = (accent_text or "").strip()
     text = watermark_text.strip()
-
-    box_width = max(180, min(image.width - 40, int(image.width * scale_percent / 100)))
+    title_font_size, accent_font_size = resolve_font_sizes(image.height, accent)
+    title_font = load_font(watermark_font_family, title_font_size, bold=True)
+    accent_font = load_font(watermark_font_family, accent_font_size)
+    padding = max(20, image.width // 34)
+    box_width = max(180, min(image.width - (padding * 2), int(image.width * scale_percent / 100)))
     box_height = max(54, int(image.height / 8) if accent else int(image.height / 10))
     x, y = resolve_watermark_position(image.width, image.height, box_width, box_height, position)
     fill = resolve_background_fill(style, opacity)
     radius = 28 if style == "monogram" else 22
-    draw.rounded_rectangle((x, y, x + box_width, y + box_height), radius=radius, fill=fill)
+    draw_text_background(draw, style, fill, x, y, box_width, box_height, radius)
 
     title_y = y + 16
     draw.text((x + 16, title_y), text, fill=(255, 255, 255, 235), font=title_font)
@@ -184,6 +221,96 @@ def apply_watermark(image, watermark_text, accent_text, watermark_style, waterma
         draw.text((x + 16, title_y + 18), accent, fill=resolve_accent_fill(style), font=accent_font)
 
     return Image.alpha_composite(image, overlay)
+
+
+def apply_image_watermark(image, watermark_image_url, watermark_image_file_path, watermark_position, watermark_opacity, watermark_scale_percent):
+    watermark = load_watermark_image(watermark_image_file_path, watermark_image_url)
+    if watermark.mode != "RGBA":
+        watermark = watermark.convert("RGBA")
+
+    opacity = max(20, min(90, int(watermark_opacity or 56)))
+    scale_percent = max(10, min(40, int(watermark_scale_percent or 18)))
+    max_width = max(60, int(image.width * scale_percent / 100))
+    ratio = max_width / watermark.width
+    height = max(1, int(round(watermark.height * ratio)))
+    watermark = watermark.resize((max_width, height), Image.Resampling.LANCZOS)
+
+    alpha = watermark.getchannel("A")
+    alpha = alpha.point(lambda value: int(value * opacity / 100))
+    watermark.putalpha(alpha)
+
+    x, y = resolve_watermark_position(image.width, image.height, watermark.width, watermark.height, (watermark_position or "bottom-right").strip().lower())
+    overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
+    overlay.alpha_composite(watermark, dest=(x, y))
+    return Image.alpha_composite(image, overlay)
+
+
+def draw_text_background(draw, style, fill, x, y, box_width, box_height, radius):
+    if style == "monogram":
+        draw.ellipse((x, y, x + box_width, y + box_height), fill=fill)
+        return
+
+    draw.rounded_rectangle((x, y, x + box_width, y + box_height), radius=radius, fill=fill)
+
+    if style == "ribbon":
+        tail_width = max(40, box_width // 4)
+        draw.rectangle((x + 18, y + box_height - 18, x + 18 + tail_width, y + box_height - 4), fill=fill)
+
+    if style == "outline":
+        draw.rounded_rectangle((x, y, x + box_width, y + box_height), radius=radius, outline=(191, 219, 254, 170), width=2)
+
+
+def resolve_font_sizes(image_height, accent):
+    if accent:
+        title_size = max(18, image_height // 16)
+    else:
+        title_size = max(18, image_height // 14)
+    accent_size = max(12, title_size - 6)
+    return title_size, accent_size
+
+
+def load_font(font_family, font_size, bold=False):
+    for candidate in font_candidates(font_family, bold):
+        if Path(candidate).exists():
+            try:
+                return ImageFont.truetype(candidate, font_size)
+            except OSError:
+                continue
+    return ImageFont.load_default()
+
+
+def font_candidates(font_family, bold):
+    family = (font_family or "sans").strip().lower()
+    windows_root = Path("C:/Windows/Fonts")
+    linux_candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    ]
+    families = {
+        "sans": [windows_root / ("arialbd.ttf" if bold else "arial.ttf"), windows_root / ("segoeuib.ttf" if bold else "segoeui.ttf"), linux_candidates[0]],
+        "serif": [windows_root / ("georgiab.ttf" if bold else "georgia.ttf"), windows_root / ("timesbd.ttf" if bold else "times.ttf"), linux_candidates[1]],
+        "mono": [windows_root / ("consolab.ttf" if bold else "consola.ttf"), linux_candidates[4]],
+        "script": [windows_root / "comic.ttf", windows_root / "comicbd.ttf", linux_candidates[2]],
+        "display": [windows_root / ("trebucbd.ttf" if bold else "trebuc.ttf"), linux_candidates[0]],
+    }
+    return [str(path) for path in families.get(family, families["sans"])]
+
+
+def load_watermark_image(watermark_image_file_path, watermark_image_url):
+    if watermark_image_file_path:
+        path = Path(watermark_image_file_path)
+        if path.exists():
+            return Image.open(path)
+
+    if watermark_image_url:
+        response = requests.get(watermark_image_url, timeout=30)
+        response.raise_for_status()
+        return Image.open(BytesIO(response.content))
+
+    raise ValueError("watermark image path or url is required")
 
 
 def resolve_watermark_position(image_width, image_height, box_width, box_height, position):

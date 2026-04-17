@@ -41,6 +41,7 @@ export function OptimizationForm({
   onFileRemove,
   onFilesClear,
   onOptionsChange,
+  onWatermarkImageChange,
   onGenerateWatermarkPresets,
   onSubmit
 }) {
@@ -156,6 +157,7 @@ export function OptimizationForm({
         options={options}
         generateLoading={watermarkGenerateLoading}
         generateError={watermarkGenerateError}
+        onGenerate={onWatermarkImageChange}
         onGenerate={onGenerateWatermarkPresets}
         onOptionsChange={onOptionsChange}
       />

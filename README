@@ -97,10 +97,11 @@ The repository already supports these basics:
 - ZIP download for processed outputs
 - ZIP upload hardening with entry-count and extraction-size limits
 
-In the current demo-oriented `sync` mode:
+The current processing model is worker-oriented:
 
-- upload-based optimization is supported
-- prompt-based generation endpoint is intentionally unavailable
+- the backend stores uploads, creates jobs, and tracks status
+- the Python worker performs image transformation and reports results back
+- prompt-based generation and upload optimization both require the worker queue
 
 What it does not yet fully provide is a true service-grade seller workflow such as batch jobs, channel presets, history-first dashboard UX, and marketplace-aware export flows.
 
@@ -139,6 +140,8 @@ Windows PowerShell:
 ```powershell
 .\gradlew.bat bootRun
 ```
+
+Keep the Python worker running as well so queued jobs are processed.
 
 ### Frontend
 

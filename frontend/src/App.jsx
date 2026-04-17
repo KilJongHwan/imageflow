@@ -16,12 +16,17 @@ const initialOptions = {
   height: "",
   quality: "82",
   aspectRatio: "original",
+  watermarkMode: "text",
   watermarkText: "",
+  watermarkFontFamily: "sans",
   watermarkBrandText: "",
   watermarkAccentText: "",
   watermarkTone: "clean",
   watermarkPresetId: "",
   watermarkPresets: [],
+  watermarkImageFile: null,
+  watermarkImagePreviewUrl: "",
+  watermarkAiPrompt: "",
   watermarkStyle: "signature",
   watermarkPosition: "bottom-right",
   watermarkOpacity: "56",
@@ -70,6 +75,12 @@ export default function App() {
       clearTimeout(healthCheckTimerRef.current);
     }
   }, []);
+
+  useEffect(() => () => {
+    if (options.watermarkImagePreviewUrl) {
+      URL.revokeObjectURL(options.watermarkImagePreviewUrl);
+    }
+  }, [options.watermarkImagePreviewUrl]);
 
   useEffect(() => {
     localStorage.setItem(API_BASE_URL_STORAGE_KEY, baseUrl);
@@ -240,6 +251,30 @@ export default function App() {
       cropWidth: "",
       cropHeight: ""
     }));
+  }
+
+  function handleWatermarkImageChange(file) {
+    setOptions((current) => {
+      if (current.watermarkImagePreviewUrl) {
+        URL.revokeObjectURL(current.watermarkImagePreviewUrl);
+      }
+
+      if (!file) {
+        return {
+          ...current,
+          watermarkMode: "text",
+          watermarkImageFile: null,
+          watermarkImagePreviewUrl: ""
+        };
+      }
+
+      return {
+        ...current,
+        watermarkMode: "upload",
+        watermarkImageFile: file,
+        watermarkImagePreviewUrl: URL.createObjectURL(file)
+      };
+    });
   }
 
   function stopPolling() {
@@ -426,6 +461,12 @@ export default function App() {
     setJobs([]);
     setRecentJobs([]);
     setFiles([]);
+    setOptions((current) => {
+      if (current.watermarkImagePreviewUrl) {
+        URL.revokeObjectURL(current.watermarkImagePreviewUrl);
+      }
+      return initialOptions;
+    });
     setSelectedJobId("");
     setPageDropActive(false);
     setError("");
@@ -463,8 +504,10 @@ export default function App() {
     if (options.height) formData.append("height", options.height);
     if (options.quality) formData.append("quality", options.quality);
     if (options.aspectRatio) formData.append("aspectRatio", options.aspectRatio);
-    if (options.watermarkText) formData.append("watermarkText", options.watermarkText);
-    if (options.watermarkAccentText) formData.append("watermarkAccentText", options.watermarkAccentText);
+    if (options.watermarkMode !== "upload" && options.watermarkText) formData.append("watermarkText", options.watermarkText);
+    if (options.watermarkMode !== "upload" && options.watermarkAccentText) formData.append("watermarkAccentText", options.watermarkAccentText);
+    if (options.watermarkMode !== "upload" && options.watermarkFontFamily) formData.append("watermarkFontFamily", options.watermarkFontFamily);
+    if (options.watermarkImageFile) formData.append("watermarkImage", options.watermarkImageFile);
     if (options.watermarkStyle) formData.append("watermarkStyle", options.watermarkStyle);
     if (options.watermarkPosition) formData.append("watermarkPosition", options.watermarkPosition);
     if (options.watermarkOpacity) formData.append("watermarkOpacity", options.watermarkOpacity);
@@ -633,6 +676,7 @@ export default function App() {
                 onFileRemove={handleRemoveFile}
                 onFilesClear={handleClearFiles}
                 onOptionsChange={setOptions}
+                onWatermarkImageChange={handleWatermarkImageChange}
                 onGenerateWatermarkPresets={handleGenerateWatermarkPresets}
                 onSubmit={handleSubmit}
               />

@@ -25,4 +25,4 @@ app:
     max-zip-entry-bytes: 4096
     max-zip-total-bytes: 8192
   queue:
-    enabled: false
+    enabled: true

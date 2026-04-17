@@ -17,8 +17,8 @@ public class HealthController {
     private final int maxBatchSize;
 
     public HealthController(
-            @Value("${app.processing.mode:sync}") String processingMode,
-            @Value("${app.queue.enabled:false}") boolean queueEnabled,
+            @Value("${app.processing.mode:worker}") String processingMode,
+            @Value("${app.queue.enabled:true}") boolean queueEnabled,
             @Value("${app.upload.max-batch-size:10}") int maxBatchSize
     ) {
         this.processingMode = processingMode;

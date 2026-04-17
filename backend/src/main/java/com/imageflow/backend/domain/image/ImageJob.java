@@ -59,8 +59,14 @@ public class ImageJob extends BaseTimeEntity {
     @Column(name = "watermark_text", length = 120)
     private String watermarkText;
 
+    @Column(name = "watermark_font_family", length = 40)
+    private String watermarkFontFamily;
+
     @Column(name = "watermark_accent_text", length = 120)
     private String watermarkAccentText;
+
+    @Column(name = "watermark_image_url", length = 500)
+    private String watermarkImageUrl;
 
     @Column(name = "watermark_style", length = 40)
     private String watermarkStyle;
@@ -225,6 +231,14 @@ public class ImageJob extends BaseTimeEntity {
         this.watermarkText = watermarkText;
     }
 
+    public String getWatermarkFontFamily() {
+        return watermarkFontFamily;
+    }
+
+    public void setWatermarkFontFamily(String watermarkFontFamily) {
+        this.watermarkFontFamily = watermarkFontFamily;
+    }
+
     public String getCropMode() {
         return cropMode;
     }
@@ -239,6 +253,14 @@ public class ImageJob extends BaseTimeEntity {
 
     public void setWatermarkAccentText(String watermarkAccentText) {
         this.watermarkAccentText = watermarkAccentText;
+    }
+
+    public String getWatermarkImageUrl() {
+        return watermarkImageUrl;
+    }
+
+    public void setWatermarkImageUrl(String watermarkImageUrl) {
+        this.watermarkImageUrl = watermarkImageUrl;
     }
 
     public String getWatermarkStyle() {

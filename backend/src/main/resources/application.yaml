@@ -30,9 +30,9 @@ app:
       secret: ${JWT_SECRET:change-this-demo-jwt-secret-key-at-least-32chars}
       expiration-seconds: ${JWT_EXPIRATION_SECONDS:604800}
   processing:
-    mode: ${APP_PROCESSING_MODE:sync}
+    mode: ${APP_PROCESSING_MODE:worker}
   queue:
-    enabled: ${APP_QUEUE_ENABLED:false}
+    enabled: ${APP_QUEUE_ENABLED:true}
     image-jobs-key: ${APP_QUEUE_IMAGE_JOBS_KEY:imageflow:image-jobs}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
