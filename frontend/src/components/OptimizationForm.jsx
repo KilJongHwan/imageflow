@@ -157,8 +157,8 @@ export function OptimizationForm({
         options={options}
         generateLoading={watermarkGenerateLoading}
         generateError={watermarkGenerateError}
-        onGenerate={onWatermarkImageChange}
         onGenerate={onGenerateWatermarkPresets}
+        onWatermarkImageChange={onWatermarkImageChange}
         onOptionsChange={onOptionsChange}
       />
 

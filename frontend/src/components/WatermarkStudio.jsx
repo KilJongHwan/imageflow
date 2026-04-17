@@ -312,13 +312,16 @@ function ImageTab({ options, onChange, onImageChange }) {
           <Button
             size="small"
             danger
-            onClick={() => onImageChange(null)}
+            onClick={() => {
+              onImageChange(null);
+              if (inputRef.current) inputRef.current.value = "";
+            }}
           >
             제거
           </Button>
         </div>
       )}
-
+      
       <Divider />
 
       <Row gutter={[16, 12]}>
