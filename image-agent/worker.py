@@ -6,7 +6,7 @@ from pathlib import Path
 
 import redis
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -363,7 +363,8 @@ def load_source_image(job):
     if source_file_path:
         source_path = Path(source_file_path)
         if source_path.exists():
-            return Image.open(source_path)
+            img = Image.open(source_path)
+            return ImageOps.exif_transpose(img)
 
     source_url = job.get("sourceImageUrl")
     if not source_url:
@@ -371,7 +372,8 @@ def load_source_image(job):
 
     response = requests.get(source_url, timeout=30)
     response.raise_for_status()
-    return Image.open(BytesIO(response.content))
+    img = Image.open(BytesIO(response.content))
+    return ImageOps.exif_transpose(img)
 
 
 def upload_to_r2_or_local(object_key, data, output_format, output_file_path):
