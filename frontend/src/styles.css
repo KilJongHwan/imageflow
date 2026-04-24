@@ -304,7 +304,8 @@ h3,
 .workspace-welcome-card,
 .dashboard-summary-card,
 .dashboard-plan-card,
-.dashboard-metric-card {
+.dashboard-metric-card,
+.dashboard-ops-card {
   border-radius: 28px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: #ffffff;
@@ -353,6 +354,11 @@ h3,
 
 .dashboard-summary-card,
 .dashboard-plan-card {
+  height: 100%;
+  padding: 22px;
+}
+
+.dashboard-ops-card {
   height: 100%;
   padding: 22px;
 }
@@ -409,6 +415,44 @@ h3,
 
 .dashboard-bullet-list li + li {
   margin-top: 8px;
+}
+
+.dashboard-ops-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.35rem;
+}
+
+.dashboard-ops-card p {
+  color: #5b6477;
+}
+
+.ops-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.ops-mini-grid div {
+  padding: 14px;
+  border-radius: 18px;
+  background: #f8fbff;
+  border: 1px solid #dce6f3;
+}
+
+.ops-mini-grid span,
+.ops-mini-grid strong {
+  display: block;
+}
+
+.ops-mini-grid span {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.ops-mini-grid strong {
+  margin-top: 6px;
 }
 
 .workspace-app-grid {
@@ -1002,6 +1046,10 @@ h3,
   .usage-track-copy {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .ops-mini-grid {
+    grid-template-columns: 1fr;
   }
 
   .auth-benefit-grid,

@@ -34,12 +34,17 @@ app:
   queue:
     enabled: ${APP_QUEUE_ENABLED:true}
     image-jobs-key: ${APP_QUEUE_IMAGE_JOBS_KEY:imageflow:image-jobs}
+    retry-attempts: ${APP_QUEUE_RETRY_ATTEMPTS:3}
+    retry-delay-millis: ${APP_QUEUE_RETRY_DELAY_MILLIS:200}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   storage:
+    provider: ${APP_STORAGE_PROVIDER:local}
     root: ${APP_STORAGE_ROOT:../storage}
   upload:
     max-batch-size: ${APP_UPLOAD_MAX_BATCH_SIZE:10}
     max-zip-entry-count: ${APP_UPLOAD_MAX_ZIP_ENTRY_COUNT:32}
     max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:20971520}
     max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:52428800}
+  rate-limit:
+    upload-requests-per-minute: ${APP_RATE_LIMIT_UPLOAD_REQUESTS_PER_MINUTE:30}

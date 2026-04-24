@@ -94,7 +94,7 @@ export function WorkspaceDashboard({ user, recentJobs, jobs, health }) {
       </Row>
 
       <Row gutter={[16, 16]} className="workspace-summary-grid">
-        <Col xs={24} xl={16}>
+        <Col xs={24} xl={15}>
           <div className="dashboard-summary-card">
             <div className="dashboard-summary-head">
               <div>
@@ -121,7 +121,7 @@ export function WorkspaceDashboard({ user, recentJobs, jobs, health }) {
             </div>
           </div>
         </Col>
-        <Col xs={24} xl={8}>
+        <Col xs={24} xl={9}>
           <div className="dashboard-plan-card">
             <Tag color="gold">Upgrade Path</Tag>
             <strong>Move To Pro</strong>
@@ -134,6 +134,31 @@ export function WorkspaceDashboard({ user, recentJobs, jobs, health }) {
             <Button type="primary" block>
               Upgrade Plan
             </Button>
+          </div>
+        </Col>
+        <Col xs={24} xl={9}>
+          <div className="dashboard-ops-card">
+            <Tag color="cyan">Ops Snapshot</Tag>
+            <strong>Async Worker Ready</strong>
+            <p>큐 기반 비동기 처리, 저장소 전환, rate limit와 retry 구조를 운영형으로 정리하는 방향을 보여줍니다.</p>
+            <div className="ops-mini-grid">
+              <div>
+                <span>Queue</span>
+                <strong>{health.queueEnabled ? "Enabled" : "Disabled"}</strong>
+              </div>
+              <div>
+                <span>Storage</span>
+                <strong>{health.storageProvider || "local"}</strong>
+              </div>
+              <div>
+                <span>Queue Depth</span>
+                <strong>{health.queueDepth ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Rate Limit</span>
+                <strong>{health.uploadRequestsPerMinute || "-"} rpm</strong>
+              </div>
+            </div>
           </div>
         </Col>
       </Row>

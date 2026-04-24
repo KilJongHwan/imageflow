@@ -49,6 +49,51 @@ const presets = [
     }
   },
   {
+    id: "musinsa",
+    label: "Musinsa",
+    title: "Fashion Catalog Crop",
+    description: "세로 비주얼 중심의 패션 상품 카드와 상세 썸네일에 맞춘 3:4 출력입니다.",
+    values: {
+      presetId: "musinsa",
+      width: "1200",
+      height: "1600",
+      quality: "85",
+      aspectRatio: "3:4",
+      cropMode: "center-crop",
+      watermarkText: ""
+    }
+  },
+  {
+    id: "instagram",
+    label: "Instagram",
+    title: "Social Promo Post",
+    description: "상품 홍보용 정사각형 피드 이미지를 빠르게 맞추는 소셜용 출력입니다.",
+    values: {
+      presetId: "instagram",
+      width: "1080",
+      height: "1080",
+      quality: "86",
+      aspectRatio: "1:1",
+      cropMode: "center-crop",
+      watermarkText: ""
+    }
+  },
+  {
+    id: "amazon",
+    label: "Amazon",
+    title: "Catalog Hero",
+    description: "글로벌 카탈로그 등록용 대표 이미지를 기준으로 한 정사각형 규격입니다.",
+    values: {
+      presetId: "amazon",
+      width: "1600",
+      height: "1600",
+      quality: "83",
+      aspectRatio: "1:1",
+      cropMode: "fit",
+      watermarkText: ""
+    }
+  },
+  {
     id: "custom",
     label: "Custom",
     title: "Manual Rule Set",
@@ -69,7 +114,7 @@ export function MarketplacePresetStrip({ activePresetId, onApplyPreset }) {
   return (
     <Row gutter={[12, 12]}>
       {presets.map((preset) => (
-        <Col xs={24} md={12} key={preset.id}>
+        <Col xs={24} md={12} xl={8} key={preset.id}>
           <button
             className={preset.id === activePresetId ? "preset-option active" : "preset-option"}
             type="button"

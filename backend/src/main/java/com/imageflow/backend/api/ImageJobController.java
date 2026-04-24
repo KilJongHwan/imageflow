@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +25,7 @@ import com.imageflow.backend.domain.image.dto.CreateImageJobRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobBatchResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResultUpdateRequest;
+import com.imageflow.backend.common.ops.RateLimitService;
 import com.imageflow.backend.domain.auth.AuthService;
 import com.imageflow.backend.domain.user.User;
 
@@ -33,10 +35,19 @@ public class ImageJobController {
 
     private final ImageJobService imageJobService;
     private final AuthService authService;
+    private final RateLimitService rateLimitService;
+    private final int uploadRequestsPerMinute;
 
-    public ImageJobController(ImageJobService imageJobService, AuthService authService) {
+    public ImageJobController(
+            ImageJobService imageJobService,
+            AuthService authService,
+            RateLimitService rateLimitService,
+            @Value("${app.rate-limit.upload-requests-per-minute:30}") int uploadRequestsPerMinute
+    ) {
         this.imageJobService = imageJobService;
         this.authService = authService;
+        this.rateLimitService = rateLimitService;
+        this.uploadRequestsPerMinute = uploadRequestsPerMinute;
     }
 
     @PostMapping
@@ -45,7 +56,9 @@ public class ImageJobController {
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody CreateImageJobRequest request
     ) {
-        return imageJobService.create(currentUser(authorizationHeader), request);
+        User user = currentUser(authorizationHeader);
+        rateLimitService.checkLimit("image-job-create", user.getId().toString(), uploadRequestsPerMinute);
+        return imageJobService.create(user, request);
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -71,8 +84,10 @@ public class ImageJobController {
             @RequestParam(required = false) Integer cropWidth,
             @RequestParam(required = false) Integer cropHeight
     ) {
+        User user = currentUser(authorizationHeader);
+        rateLimitService.checkLimit("image-job-upload", user.getId().toString(), uploadRequestsPerMinute);
         return imageJobService.createUploadJob(
-                currentUser(authorizationHeader),
+                user,
                 file,
                 watermarkImage,
                 width,
@@ -117,8 +132,10 @@ public class ImageJobController {
             @RequestParam(required = false) Integer cropWidth,
             @RequestParam(required = false) Integer cropHeight
     ) {
+        User user = currentUser(authorizationHeader);
+        rateLimitService.checkLimit("image-job-uploads", user.getId().toString(), uploadRequestsPerMinute);
         return imageJobService.createUploadJobs(
-                currentUser(authorizationHeader),
+                user,
                 files,
                 watermarkImage,
                 width,
