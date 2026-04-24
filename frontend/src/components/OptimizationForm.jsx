@@ -33,8 +33,6 @@ export function OptimizationForm({
   statusMessage,
   user,
   submitLoading,
-  watermarkGenerateLoading,
-  watermarkGenerateError,
   health,
   onBaseUrlChange,
   onFileChange,
@@ -42,7 +40,6 @@ export function OptimizationForm({
   onFilesClear,
   onOptionsChange,
   onWatermarkImageChange,
-  onGenerateWatermarkPresets,
   onSubmit
 }) {
   const acceptedFileTypes = ".jpg,.jpeg,.png,.webp,.zip";
@@ -155,9 +152,6 @@ export function OptimizationForm({
 
       <WatermarkStudio
         options={options}
-        generateLoading={watermarkGenerateLoading}
-        generateError={watermarkGenerateError}
-        onGenerate={onGenerateWatermarkPresets}
         onWatermarkImageChange={onWatermarkImageChange}
         onOptionsChange={onOptionsChange}
       />
@@ -193,11 +187,6 @@ export function OptimizationForm({
                 <Select value={options.cropMode} options={cropModeOptions} onChange={(value) => updateOption("cropMode", value)} />
               </Form.Item>
             </Col>
-            <Col xs={24} md={8}>
-              <Form.Item label="Selected Watermark">
-                <Input value={options.watermarkText} placeholder="Generate or type brand mark" onChange={(event) => updateOption("watermarkText", event.target.value)} />
-              </Form.Item>
-            </Col>
           </Row>
 
           {options.cropMode === "manual" && files.length === 1 ? (
@@ -223,7 +212,7 @@ export function OptimizationForm({
               <div className="rule-footer-copy">
                 <Text strong>Current intent</Text>
                 <Paragraph type="secondary">
-                  {options.height ? `${options.width} x ${options.height}` : `${options.width || "Auto"} width`} / Q{options.quality || "-"} / {options.cropMode} / {options.watermarkStyle || "basic watermark"}
+                  {options.height ? `${options.width} x ${options.height}` : `${options.width || "Auto"} width`} / Q{options.quality || "-"} / {options.cropMode} / {options.watermarkEnabled ? `${options.watermarkStyle || "basic watermark"} on` : "watermark off"}
                 </Paragraph>
             </div>
             <div className="rule-footer-actions">

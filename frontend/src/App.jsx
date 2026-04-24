@@ -16,17 +16,13 @@ const initialOptions = {
   height: "",
   quality: "82",
   aspectRatio: "original",
+  watermarkEnabled: false,
   watermarkMode: "text",
   watermarkText: "",
   watermarkFontFamily: "sans",
-  watermarkBrandText: "",
   watermarkAccentText: "",
-  watermarkTone: "clean",
-  watermarkPresetId: "",
-  watermarkPresets: [],
   watermarkImageFile: null,
   watermarkImagePreviewUrl: "",
-  watermarkAiPrompt: "",
   watermarkStyle: "signature",
   watermarkPosition: "bottom-right",
   watermarkOpacity: "56",
@@ -53,8 +49,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [watermarkGenerateLoading, setWatermarkGenerateLoading] = useState(false);
-  const [watermarkGenerateError, setWatermarkGenerateError] = useState("");
   const [health, setHealth] = useState({
     status: "checking",
     processingMode: "",
@@ -377,49 +371,6 @@ export default function App() {
     }
   }
 
-  async function handleGenerateWatermarkPresets(payload) {
-    setWatermarkGenerateError("");
-    setWatermarkGenerateLoading(true);
-
-    try {
-      const presets = await request("/api/watermarks/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      setOptions((current) => {
-        const firstPreset = presets[0];
-        if (!firstPreset) {
-          return {
-            ...current,
-            watermarkPresets: []
-          };
-        }
-
-        return {
-          ...current,
-          watermarkBrandText: payload.brandText,
-          watermarkAccentText: payload.accentText || "",
-          watermarkTone: payload.tone,
-          watermarkPresets: presets,
-          watermarkPresetId: firstPreset.id,
-          watermarkText: firstPreset.brandText,
-          watermarkStyle: firstPreset.style,
-          watermarkPosition: firstPreset.position,
-          watermarkOpacity: String(firstPreset.recommendedOpacity),
-          watermarkScalePercent: String(firstPreset.recommendedScalePercent)
-        };
-      });
-    } catch (generateError) {
-      setWatermarkGenerateError(generateError.message);
-    } finally {
-      setWatermarkGenerateLoading(false);
-    }
-  }
-
   function mergeJobsIntoHistory(nextJobs) {
     setRecentJobs((currentJobs) => {
       const byId = new Map();
@@ -487,6 +438,10 @@ export default function App() {
       setError("수동 크롭은 한 번에 한 장 업로드할 때만 사용할 수 있습니다.");
       return;
     }
+    if (options.watermarkEnabled && options.watermarkMode !== "upload" && !options.watermarkText.trim()) {
+      setError("워터마크 적용을 켠 경우 브랜드명 또는 워터마크 텍스트가 필요합니다.");
+      return;
+    }
 
     setError("");
     setJobs([]);
@@ -504,14 +459,16 @@ export default function App() {
     if (options.height) formData.append("height", options.height);
     if (options.quality) formData.append("quality", options.quality);
     if (options.aspectRatio) formData.append("aspectRatio", options.aspectRatio);
-    if (options.watermarkMode !== "upload" && options.watermarkText) formData.append("watermarkText", options.watermarkText);
-    if (options.watermarkMode !== "upload" && options.watermarkAccentText) formData.append("watermarkAccentText", options.watermarkAccentText);
-    if (options.watermarkMode !== "upload" && options.watermarkFontFamily) formData.append("watermarkFontFamily", options.watermarkFontFamily);
-    if (options.watermarkImageFile) formData.append("watermarkImage", options.watermarkImageFile);
-    if (options.watermarkStyle) formData.append("watermarkStyle", options.watermarkStyle);
-    if (options.watermarkPosition) formData.append("watermarkPosition", options.watermarkPosition);
-    if (options.watermarkOpacity) formData.append("watermarkOpacity", options.watermarkOpacity);
-    if (options.watermarkScalePercent) formData.append("watermarkScalePercent", options.watermarkScalePercent);
+    if (options.watermarkEnabled) {
+      if (options.watermarkMode !== "upload" && options.watermarkText) formData.append("watermarkText", options.watermarkText);
+      if (options.watermarkMode !== "upload" && options.watermarkAccentText) formData.append("watermarkAccentText", options.watermarkAccentText);
+      if (options.watermarkMode !== "upload" && options.watermarkFontFamily) formData.append("watermarkFontFamily", options.watermarkFontFamily);
+      if (options.watermarkImageFile) formData.append("watermarkImage", options.watermarkImageFile);
+      if (options.watermarkStyle) formData.append("watermarkStyle", options.watermarkStyle);
+      if (options.watermarkPosition) formData.append("watermarkPosition", options.watermarkPosition);
+      if (options.watermarkOpacity) formData.append("watermarkOpacity", options.watermarkOpacity);
+      if (options.watermarkScalePercent) formData.append("watermarkScalePercent", options.watermarkScalePercent);
+    }
     if (options.cropMode) formData.append("cropMode", options.cropMode);
     if (options.cropX) formData.append("cropX", options.cropX);
     if (options.cropY) formData.append("cropY", options.cropY);
@@ -668,8 +625,6 @@ export default function App() {
                 statusMessage={statusMessage}
                 user={user}
                 submitLoading={submitLoading}
-                watermarkGenerateLoading={watermarkGenerateLoading}
-                watermarkGenerateError={watermarkGenerateError}
                 health={healthView}
                 onBaseUrlChange={setBaseUrl}
                 onFileChange={handleFilesSelected}
@@ -677,7 +632,6 @@ export default function App() {
                 onFilesClear={handleClearFiles}
                 onOptionsChange={setOptions}
                 onWatermarkImageChange={handleWatermarkImageChange}
-                onGenerateWatermarkPresets={handleGenerateWatermarkPresets}
                 onSubmit={handleSubmit}
               />
             </div>

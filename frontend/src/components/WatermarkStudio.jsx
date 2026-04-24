@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Alert, Button, Col, Input, Row, Slider, Typography } from "antd";
+import { Alert, Button, Col, Input, Row, Slider, Switch, Typography } from "antd";
 import { PanelCard } from "./ui/PanelCard";
 
 const { Text } = Typography;
@@ -19,16 +19,9 @@ const FONTS = [
   { value: "monospace",  label: "Mono" },
 ];
 
-const TONES = [
-  { value: "clean",    label: "Clean" },
-  { value: "premium",  label: "Premium" },
-  { value: "playful",  label: "Playful" },
-];
-
 const TABS = [
   { key: "text",  label: "텍스트" },
   { key: "image", label: "이미지" },
-  { key: "ai",    label: "AI 생성" },
 ];
 
 // ─── sub-components ───────────────────────────────────────────────────────────
@@ -367,125 +360,6 @@ function ImageTab({ options, onChange, onImageChange }) {
   );
 }
 
-// ─── AI TAB ───────────────────────────────────────────────────────────────────
-
-function AiTab({ options, generateLoading, generateError, onGenerate, onChange }) {
-  function update(key, value) {
-    onChange((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function handleSelectPreset(preset) {
-    onChange((prev) => ({
-      ...prev,
-      watermarkPresetId: preset.id,
-      watermarkText: preset.brandText,
-      watermarkAccentText: preset.accentText || "",
-      watermarkStyle: preset.style,
-      watermarkPosition: preset.position,
-      watermarkOpacity: String(preset.recommendedOpacity),
-      watermarkScalePercent: String(preset.recommendedScalePercent),
-    }));
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Row gutter={[12, 8]}>
-        <Col xs={24} md={10}>
-          <Label>브랜드명</Label>
-          <Input
-            value={options.watermarkBrandText}
-            placeholder="Lune Atelier"
-            onChange={(e) => update("watermarkBrandText", e.target.value)}
-          />
-        </Col>
-        <Col xs={24} md={8}>
-          <Label>서브 문구 (선택)</Label>
-          <Input
-            value={options.watermarkAccentText}
-            placeholder="Official Store"
-            onChange={(e) => update("watermarkAccentText", e.target.value)}
-          />
-        </Col>
-        <Col xs={24} md={6}>
-          <Label>톤</Label>
-          <SegmentedButtons
-            options={TONES}
-            value={options.watermarkTone || "clean"}
-            onChange={(v) => update("watermarkTone", v)}
-            block
-          />
-        </Col>
-      </Row>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Button
-          type="primary"
-          loading={generateLoading}
-          disabled={!options.watermarkBrandText?.trim()}
-          onClick={() =>
-            onGenerate({
-              brandText: options.watermarkBrandText,
-              accentText: options.watermarkAccentText,
-              tone: options.watermarkTone,
-            })
-          }
-        >
-          {generateLoading ? "생성 중..." : "시안 3개 생성"}
-        </Button>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          시안을 고르면 텍스트 탭 설정에 자동 반영됩니다.
-        </Text>
-      </div>
-
-      {generateError && <Alert type="error" showIcon message={generateError} />}
-
-      {!generateLoading && options.watermarkPresets?.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {options.watermarkPresets.map((preset) => {
-            const selected = options.watermarkPresetId === preset.id;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleSelectPreset(preset)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 14px",
-                  border: "1px solid",
-                  borderColor: selected ? "#1677ff" : "#e8e8e8",
-                  borderRadius: 8,
-                  background: selected ? "#e6f4ff" : "transparent",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  width: "100%",
-                  transition: "all .15s",
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600, color: selected ? "#1677ff" : "#262626" }}>
-                  {preset.label}
-                </span>
-                <span style={{ fontSize: 11, color: "#8c8c8c" }}>
-                  불투명도 {preset.recommendedOpacity}% · {preset.position}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {!generateLoading && !options.watermarkPresets?.length && (
-        <Alert
-          type="info"
-          showIcon
-          message="브랜드명과 톤을 입력한 뒤 시안을 생성하세요."
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function Label({ children, style }) {
@@ -504,9 +378,6 @@ function Divider() {
 
 export function WatermarkStudio({
   options,
-  generateLoading,
-  generateError,
-  onGenerate,
   onOptionsChange,
   onWatermarkImageChange,
 }) {
@@ -542,6 +413,29 @@ export function WatermarkStudio({
         </div>
       }
     >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#262626" }}>이번 배치에 워터마크 적용</div>
+          <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 2 }}>
+            시안을 만들어도 이 스위치를 켠 경우에만 실제 결과물에 들어갑니다.
+          </div>
+        </div>
+        <Switch
+          checked={Boolean(options.watermarkEnabled)}
+          onChange={(checked) => onOptionsChange((prev) => ({ ...prev, watermarkEnabled: checked }))}
+        />
+      </div>
+
+      {!options.watermarkEnabled ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="워터마크는 현재 미적용 상태입니다."
+          description="시안 생성과 설정은 미리 해둘 수 있고, 스위치를 켜야 실제 업로드 배치에 반영됩니다."
+        />
+      ) : null}
+
       {activeTab === "text" && (
         <TextTab options={options} onChange={onOptionsChange} />
       )}
@@ -550,15 +444,6 @@ export function WatermarkStudio({
           options={options}
           onChange={onOptionsChange}
           onImageChange={onWatermarkImageChange}
-        />
-      )}
-      {activeTab === "ai" && (
-        <AiTab
-          options={options}
-          generateLoading={generateLoading}
-          generateError={generateError}
-          onGenerate={onGenerate}
-          onChange={onOptionsChange}
         />
       )}
     </PanelCard>
