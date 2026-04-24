@@ -3,6 +3,7 @@ import os
 import time
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import redis
 import requests
@@ -306,7 +307,7 @@ def load_watermark_image(watermark_image_file_path, watermark_image_url):
             return Image.open(path)
 
     if watermark_image_url:
-        response = requests.get(watermark_image_url, timeout=30)
+        response = requests.get(resolve_backend_url(watermark_image_url), timeout=30)
         response.raise_for_status()
         return Image.open(BytesIO(response.content))
 
@@ -370,10 +371,36 @@ def load_source_image(job):
     if not source_url:
         raise ValueError("source image path or url is required")
 
-    response = requests.get(source_url, timeout=30)
+    response = requests.get(resolve_backend_url(source_url), timeout=30)
     response.raise_for_status()
     img = Image.open(BytesIO(response.content))
     return ImageOps.exif_transpose(img)
+
+
+def resolve_backend_url(url):
+    if not url:
+        return url
+
+    parsed = urlparse(url)
+    if parsed.hostname not in {"localhost", "127.0.0.1"}:
+        return url
+
+    backend_base = BACKEND_BASE_URL.rstrip("/")
+    if not backend_base:
+        return url
+
+    backend_parsed = urlparse(backend_base)
+    if not backend_parsed.scheme or not backend_parsed.netloc:
+        return url
+
+    return urlunparse((
+        backend_parsed.scheme,
+        backend_parsed.netloc,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+    ))
 
 
 def upload_to_r2_or_local(object_key, data, output_format, output_file_path):

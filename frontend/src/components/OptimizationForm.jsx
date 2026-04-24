@@ -96,6 +96,7 @@ export function OptimizationForm({
   return (
     <Space direction="vertical" size={18} className="full-width">
       <PanelCard
+        id="workspace-uploader"
         className="workspace-card"
         title="Seller Workspace"
         extra={<Text type="secondary">{user.email}</Text>}

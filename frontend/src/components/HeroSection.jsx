@@ -32,12 +32,12 @@ export function HeroSection({ user, onLogout, health }) {
 
   return (
     <PanelCard
-      className="hero-card"
-      bodyStyle={{ padding: 28 }}
+      className="hero-card workspace-hero-card"
+      bodyStyle={{ padding: 24 }}
       title={(
         <Space size={12}>
-          <Tag color="gold">ImageFlow Commerce Ops</Tag>
-          <Text type="secondary">Seller image optimization workspace</Text>
+          <Tag color="gold">Workspace</Tag>
+          <Text type="secondary">Seller image optimization console</Text>
         </Space>
       )}
       extra={user ? (
@@ -50,13 +50,12 @@ export function HeroSection({ user, onLogout, health }) {
       <Row gutter={[24, 24]} align="middle">
         <Col xs={24} lg={15}>
           <Space direction="vertical" size={18} className="hero-copy-block">
-            <Tag color="blue" className="hero-mini-tag">Commerce Image Workspace</Tag>
+            <Tag color="blue" className="hero-mini-tag">Operations Desk</Tag>
             <Title level={1} className="hero-title">
-              상품 이미지 업로드, 규격 조정, 결과 검수를 한 화면에서 처리하는 운영 워크스페이스
+              현재 배치와 최근 작업 이력을 함께 보는 운영 워크스페이스
             </Title>
             <Paragraph className="hero-description">
-              쿠팡, 네이버 스마트스토어, 컬리처럼 상품 이미지 작업이 반복되는 환경을 기준으로,
-              대량 업로드부터 크롭, 압축, 결과 다운로드와 절감률 확인까지 이어서 볼 수 있게 구성했습니다.
+              로그인 후에는 실제 앱처럼 업로드, 워터마크, 결과 비교, 다운로드와 작업 재확인 흐름이 한 화면에서 이어집니다.
             </Paragraph>
             <Space wrap size={[10, 10]}>
               <Tag color={serviceStatusTagColor(health.status)}>{backendStateLabel}</Tag>

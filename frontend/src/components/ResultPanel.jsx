@@ -96,6 +96,7 @@ export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, 
   return (
     <Space direction="vertical" size={18} className="full-width">
       <PanelCard
+        id="workspace-results"
         className="workspace-card"
         title="Operations Desk"
         extra={downloadTargetIds.length > 0 ? (

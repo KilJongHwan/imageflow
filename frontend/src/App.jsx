@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { ConfigProvider, theme } from "antd";
 
-import { AuthPanel } from "./components/AuthPanel";
 import { HeroSection } from "./components/HeroSection";
+import { LandingPage } from "./components/LandingPage";
 import { OptimizationForm } from "./components/OptimizationForm";
 import { ResultPanel } from "./components/ResultPanel";
+import { WorkspaceDashboard } from "./components/WorkspaceDashboard";
 
 const POLL_INTERVAL_MS = 2500;
 const TOKEN_STORAGE_KEY = "imageflow.jwt";
@@ -395,8 +396,11 @@ export default function App() {
         body: JSON.stringify(credentials)
       });
 
-      setToken(payload.token);
-      setUser(payload.user);
+      startTransition(() => {
+        setToken(payload.token);
+        setUser(payload.user);
+      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setStatusMessage("로그인이 완료되었습니다. 이미지를 올리면 바로 처리됩니다.");
     } catch (submitError) {
       setAuthError(submitError.message);
@@ -407,22 +411,25 @@ export default function App() {
 
   function handleLogout() {
     stopPolling();
-    setToken("");
-    setUser(null);
-    setJobs([]);
-    setRecentJobs([]);
-    setFiles([]);
-    setOptions((current) => {
-      if (current.watermarkImagePreviewUrl) {
-        URL.revokeObjectURL(current.watermarkImagePreviewUrl);
-      }
-      return initialOptions;
+    startTransition(() => {
+      setToken("");
+      setUser(null);
+      setJobs([]);
+      setRecentJobs([]);
+      setFiles([]);
+      setOptions((current) => {
+        if (current.watermarkImagePreviewUrl) {
+          URL.revokeObjectURL(current.watermarkImagePreviewUrl);
+        }
+        return initialOptions;
+      });
+      setSelectedJobId("");
+      setPageDropActive(false);
+      setError("");
+      setAuthError("");
+      setStatusMessage("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
     });
-    setSelectedJobId("");
-    setPageDropActive(false);
-    setError("");
-    setAuthError("");
-    setStatusMessage("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleSubmit(event) {
@@ -612,53 +619,60 @@ export default function App() {
           </div>
         ) : null}
 
-        <HeroSection user={user} onLogout={handleLogout} health={healthView} />
-
-        <main className="main-grid">
+        <div key={user ? "workspace" : "landing"} className="app-view-shell">
           {user ? (
-            <div className="content-column">
-              <OptimizationForm
-                baseUrl={baseUrl}
-                files={files}
-                options={options}
-                error={error}
-                statusMessage={statusMessage}
-                user={user}
-                submitLoading={submitLoading}
-                health={healthView}
-                onBaseUrlChange={setBaseUrl}
-                onFileChange={handleFilesSelected}
-                onFileRemove={handleRemoveFile}
-                onFilesClear={handleClearFiles}
-                onOptionsChange={setOptions}
-                onWatermarkImageChange={handleWatermarkImageChange}
-                onSubmit={handleSubmit}
-              />
-            </div>
-          ) : (
-            <div className="content-column">
-              <AuthPanel
-                baseUrl={baseUrl}
-                error={authError}
-                submitLoading={authLoading}
-                health={healthView}
-                onBaseUrlChange={setBaseUrl}
-                onSubmit={handleAuthSubmit}
-              />
-            </div>
-          )}
+            <>
+            <HeroSection user={user} onLogout={handleLogout} health={healthView} />
 
-          <div className="content-column">
-            <ResultPanel
-              jobs={jobs}
-              recentJobs={recentJobs}
-              selectedJobId={selectedJobId}
-              historyLoading={historyLoading}
-              onDownloadBatch={handleDownloadBatch}
-              onSelectJob={setSelectedJobId}
+              <WorkspaceDashboard user={user} recentJobs={recentJobs} jobs={jobs} health={healthView} />
+
+              <main className="workspace-app-grid">
+                <div className="workspace-primary-column">
+                <OptimizationForm
+                  baseUrl={baseUrl}
+                  files={files}
+                  options={options}
+                  error={error}
+                  statusMessage={statusMessage}
+                  user={user}
+                  submitLoading={submitLoading}
+                  health={healthView}
+                  onBaseUrlChange={setBaseUrl}
+                  onFileChange={handleFilesSelected}
+                  onFileRemove={handleRemoveFile}
+                  onFilesClear={handleClearFiles}
+                  onOptionsChange={setOptions}
+                  onWatermarkImageChange={handleWatermarkImageChange}
+                  onSubmit={handleSubmit}
+                />
+                </div>
+
+                <div className="workspace-secondary-column">
+                <ResultPanel
+                  jobs={jobs}
+                  recentJobs={recentJobs}
+                  selectedJobId={selectedJobId}
+                  historyLoading={historyLoading}
+                  onDownloadBatch={handleDownloadBatch}
+                  onSelectJob={setSelectedJobId}
+                />
+                </div>
+              </main>
+            </>
+          ) : (
+            <LandingPage
+              health={healthView}
+              authProps={{
+                baseUrl,
+                error: authError,
+                submitLoading: authLoading,
+                health: healthView,
+                onBaseUrlChange: setBaseUrl,
+                onSubmit: handleAuthSubmit
+              }}
             />
-          </div>
-        </main>
+          )}
+        </div>
       </div>
     </ConfigProvider>
   );
