@@ -15,6 +15,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 QUEUE_KEY = os.getenv("IMAGE_JOB_QUEUE_KEY", "imageflow:image-jobs")
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8080")
 R2_PUBLIC_BASE_URL = os.getenv("R2_PUBLIC_BASE_URL", "https://example-r2-public-url.invalid")
+STORAGE_ROOT = os.getenv("STORAGE_ROOT", "")
 POLL_TIMEOUT_SECONDS = int(os.getenv("POLL_TIMEOUT_SECONDS", "5"))
 
 
@@ -410,8 +411,8 @@ def upload_to_r2_or_local(object_key, data, output_format, output_file_path):
     endpoint = os.getenv("R2_ENDPOINT")
 
     if not all([access_key, secret_key, bucket_name, endpoint]):
-        if output_file_path:
-            output_path = Path(output_file_path)
+        output_path = resolve_local_output_path(object_key, output_file_path)
+        if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_bytes(data)
             print(f"[worker] saved optimized file locally: {output_path}")
@@ -456,6 +457,19 @@ def source_size_bytes(job):
         source_path = Path(source_file_path)
         if source_path.exists():
             return source_path.stat().st_size
+    return None
+
+
+def resolve_local_output_path(object_key, output_file_path):
+    normalized_key = (object_key or "").replace("\\", "/")
+    filename = Path(normalized_key).name if normalized_key else ""
+
+    if STORAGE_ROOT and filename:
+        return Path(STORAGE_ROOT).resolve().joinpath("output", filename)
+
+    if output_file_path:
+        return Path(output_file_path)
+
     return None
 
 
