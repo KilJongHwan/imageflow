@@ -1,5 +1,9 @@
 # User Mode Plan
 
+> Historical UX planning note from an earlier direction.
+> It is not the current source of truth for the implemented ImageFlow product.
+> Use [product-overview.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/product-overview.md:1) for the current scope.
+
 This document prioritizes the general user experience before any admin mode.
 
 ## Product Direction

@@ -1,5 +1,8 @@
 # Demo Deploy Checklist
 
+> This file is kept as a short legacy checklist.
+> For the current deployment guide, use [deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1).
+
 ## 목적
 
 이 문서는 ImageFlow를 `데모/포트폴리오용`으로 배포할 때 필요한 실제 체크리스트입니다.
@@ -71,4 +74,3 @@ Vercel에서 `frontend`를 Root Directory로 지정합니다.
 - 업로드 파일과 결과 파일은 영구 저장이 아님
 - Redis worker는 데모 배포 기준 비활성
 - 대용량 파일은 플랫폼 제한에 영향을 받을 수 있음
-

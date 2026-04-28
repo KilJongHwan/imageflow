@@ -1,5 +1,8 @@
 # Commerce Seller Roadmap
 
+> Historical product direction note.
+> For the current implemented scope, use [product-overview.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/product-overview.md:1).
+
 ## Positioning
 
 ImageFlow should be built as a seller image operations service, not just an image optimizer.

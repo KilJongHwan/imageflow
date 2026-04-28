@@ -1,42 +1,37 @@
 # Frontend
 
-This frontend now uses React with Vite.
+This is the React + Vite web app for ImageFlow.
 
-## Files
+## What It Covers
 
-- `index.html`: Vite entry html
-- `src/main.jsx`: React bootstrap
-- `src/App.jsx`: main page
-- `src/styles.css`: app styles
-- `vite.config.js`: Vite config
+- logged-out SaaS landing page
+- pricing and get started flow
+- authenticated workspace dashboard
+- upload, crop, optimize, and review flow
+- batch history and result review
 
-## What it does
+## Main Files
 
-- uploads a single image
-- sends an optimization job to the backend
-- polls job status
-- shows the optimized result image when ready
-
-## Install
-
-```powershell
-cd frontend
-npm install
-```
-
-Recommended runtime:
-
-```text
-Node.js 16+
-```
+- `src/App.jsx`
+  App shell, auth state, upload flow, polling, landing/workspace split
+- `src/components/LandingPage.jsx`
+  Marketing-facing entry experience
+- `src/components/WorkspaceDashboard.jsx`
+  Logged-in SaaS-style workspace home
+- `src/components/OptimizationForm.jsx`
+  Upload and optimization controls
+- `src/components/ResultPanel.jsx`
+  Job review and download experience
 
 ## Run
 
 ```powershell
+cd frontend
+npm install
 npm run dev
 ```
 
-Then open:
+Default frontend URL:
 
 ```text
 http://localhost:5173
@@ -47,3 +42,20 @@ Default backend target:
 ```text
 http://localhost:8080
 ```
+
+You can override it with:
+
+```text
+VITE_API_BASE_URL
+```
+
+## Build
+
+```powershell
+npm run build
+```
+
+## Related Docs
+
+- [README.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/README.md:1)
+- [docs/product-overview.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/product-overview.md:1)

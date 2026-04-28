@@ -228,6 +228,77 @@ Frontend (React)
 - 스트리밍 다운로드와 ZIP 안전장치 추가로 대용량 파일 처리 시 메모리 리스크를 줄이도록 개선
 - queue retry, 업로드 rate limit, health 기반 운영 상태 노출 등 운영형 보강
 
+## 최적화한 지점과 끌어올린 수준
+
+### 1. 이미지 최적화 결과를 숫자로 증명할 수 있게 설계
+
+- 작업 결과 응답에 `sourceFileSizeBytes`, `resultFileSizeBytes`, `savedBytes`, `reductionRate`를 포함해, 단순히 "압축됨"이 아니라 `얼마나 줄었는지`를 수치로 설명할 수 있게 만들었습니다.
+- 프런트 대시보드와 결과 패널에서도 같은 수치를 노출해, 비용 절감 포인트가 바로 보이도록 연결했습니다.
+- 즉, 이 프로젝트는 이미지 편집 기능보다 `전송량과 저장 용량을 얼마나 줄였는가`를 설명하는 구조까지 포함합니다.
+
+코드 근거:
+
+- [ImageJobResponse.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/dto/ImageJobResponse.java:46)
+- [ResultPanel.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/ResultPanel.jsx:177)
+- [WorkspaceDashboard.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/WorkspaceDashboard.jsx:38)
+
+### 2. 대용량 업로드 시 메모리와 압축 폭탄 리스크를 방어
+
+- 배치 업로드는 최대 `10개` 파일로 제한했습니다.
+- ZIP 업로드는 최대 `32개 엔트리`, 엔트리당 최대 `20MB`, 전체 압축 해제 기준 최대 `50MB`로 제한했습니다.
+- ZIP 다운로드는 결과 파일을 한 번에 메모리에 모으지 않고 `StreamingResponseBody + ZipOutputStream`으로 바로 흘려보내도록 바꿨습니다.
+
+이 부분은 포폴에서 `대용량 처리`를 어떻게 고민했는지 보여주는 핵심입니다. 단순히 업로드가 되는 수준이 아니라, 많이 올렸을 때 서버가 어디서 터질 수 있는지를 먼저 보고 제한과 스트리밍을 넣었습니다.
+
+코드 근거:
+
+- [application.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/resources/application.yaml:43)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:63)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:419)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:611)
+
+### 3. 동기형 데모 툴이 아니라 비동기 운영 구조로 끌어올림
+
+- 이미지 처리를 API 서버에서 직접 끝내지 않고, `Redis queue + Python worker`로 분리했습니다.
+- 큐 publish는 `3회 retry`, `200ms` 간격으로 재시도하도록 넣어 일시적인 Redis 오류에 조금 더 버틸 수 있게 했습니다.
+- health 응답에는 `processing mode`, `queue enabled`, `queue depth`, `storage provider`, `upload rate limit`를 포함해 운영 상태를 바로 확인할 수 있게 했습니다.
+
+즉, "기능이 된다"에서 끝나지 않고 `운영 중 어떤 정보가 필요할지`까지 포함한 구조로 끌어올렸습니다.
+
+코드 근거:
+
+- [ImageJobQueuePublisher.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/queue/ImageJobQueuePublisher.java:15)
+- [HealthController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/HealthController.java:24)
+- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:22)
+
+### 4. 무제한 호출이 아닌 운영형 보호 장치를 추가
+
+- 업로드 API에는 분당 `30회` 기본 rate limit를 두었습니다.
+- 워터마크는 모든 배치에 강제하지 않고, 사용자가 `이번 배치에 워터마크 적용`을 켠 경우에만 요청에 포함되도록 바꿨습니다.
+- 프런트에서는 로그아웃 시 polling을 정리해 불필요한 상태 조회 요청이 남지 않도록 처리했습니다.
+
+이 개선은 성능 최적화라기보다 `불필요한 요청과 혼선을 줄이는 안정화`에 가깝습니다.
+
+코드 근거:
+
+- [application.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/resources/application.yaml:50)
+- [ImageJobController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/ImageJobController.java:45)
+- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:448)
+- [WatermarkStudio.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/WatermarkStudio.jsx:424)
+
+## 서류 합격용으로 강조할 수 있는 노력
+
+- 기능 추가보다 먼저 `어디서 비용이 발생하고 어디서 장애가 날 수 있는지`를 기준으로 구조를 재정리했습니다.
+- 화면도 단순 업로드 툴이 아니라 `랜딩 -> Pricing -> Get Started -> 로그인 후 운영 대시보드` 흐름으로 바꿔, 제품 사고와 UX 설계 역량이 드러나도록 다듬었습니다.
+- 비동기 워커와 로컬/스토리지 분리 구조를 붙이면서, 실제로 Docker 워커와 호스트 저장 경로가 어긋나는 문제까지 직접 디버깅하고 수정했습니다.
+- 결과적으로 이 프로젝트는 "이미지 압축 기능 구현" 수준이 아니라, `커머스 이미지 운영 워크플로우를 서비스 형태로 재설계하고 운영 리스크까지 보완한 작업`이라고 설명할 수 있습니다.
+
+## 이력서용 핵심 문장
+
+- 커머스 이미지 운영 과정에서 발생하는 전송량·저장소 비용 문제를 줄이기 위해, 원본 대비 결과 파일 크기와 절감률을 노출하는 이미지 최적화 SaaS 워크스페이스를 설계·구현했습니다.
+- 대량 업로드 리스크를 줄이기 위해 배치 10개 제한, ZIP 32엔트리/20MB/50MB 제한, 스트리밍 ZIP 다운로드를 적용해 메모리 및 압축 해제 부담을 제어했습니다.
+- Redis queue + Python worker 기반 비동기 처리 구조, 3회 retry, 분당 30회 업로드 rate limit, health 기반 운영 상태 노출을 통해 데모 수준을 넘는 운영형 구조를 정리했습니다.
+
 ## 아쉬운 점 / 다음 단계
 
 - 최근 작업 히스토리의 상태 필터링과 별도 Jobs 화면이 더 필요함

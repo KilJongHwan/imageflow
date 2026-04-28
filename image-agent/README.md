@@ -1,29 +1,36 @@
 # Image Agent
 
-This worker consumes image jobs from Redis, optimizes the image, uploads it to Cloudflare R2, and reports the result back to the backend.
+This is the Python worker used for async image processing in ImageFlow.
 
-## Flow
+## Responsibilities
 
-1. read job payload from Redis list
-2. mark backend job as `PROCESSING`
-3. download source image
-4. resize and optimize image
-5. upload optimized file to R2
-6. mark backend job as `SUCCEEDED` or `FAILED`
+1. read image jobs from Redis
+2. mark a job as `PROCESSING`
+3. load the source image
+4. apply crop, resize, quality, and optional watermark rules
+5. store the optimized result
+6. report `SUCCEEDED` or `FAILED` back to the backend
 
-## Environment Variables
+## Important Runtime Behavior
+
+- if a job contains a `localhost` file URL, the worker rewrites it using `BACKEND_BASE_URL`
+- local output storage can be shared with the host through `STORAGE_ROOT`
+- if object storage credentials are missing, the worker falls back to local output storage
+
+## Main Environment Variables
 
 - `REDIS_HOST`
 - `REDIS_PORT`
 - `IMAGE_JOB_QUEUE_KEY`
 - `BACKEND_BASE_URL`
+- `STORAGE_ROOT`
 - `R2_ENDPOINT`
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `R2_BUCKET_NAME`
 - `R2_PUBLIC_BASE_URL`
 
-## Run
+## Run Directly
 
 ```powershell
 cd image-agent
@@ -31,4 +38,20 @@ pip install -r requirements.txt
 python worker.py
 ```
 
-If R2 credentials are missing, upload is simulated and the worker still returns a public-looking URL using `R2_PUBLIC_BASE_URL`.
+## Run With Docker Compose
+
+```powershell
+docker compose up -d redis image-agent
+```
+
+If the worker code changed:
+
+```powershell
+docker compose build image-agent
+docker compose up -d image-agent
+```
+
+## Related Docs
+
+- [README.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/README.md:1)
+- [docs/deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1)
