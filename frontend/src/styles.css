@@ -289,6 +289,26 @@ h3,
   border-bottom: 1px solid #e2e8f0;
 }
 
+.auth-page-shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.auth-page-topbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.auth-page-card {
+  padding-top: 4px;
+}
+
+.auth-page-title.ant-typography {
+  margin-bottom: 8px;
+}
+
 .workspace-hero-card {
   background:
     radial-gradient(circle at top right, rgba(191, 219, 254, 0.35), transparent 20%),

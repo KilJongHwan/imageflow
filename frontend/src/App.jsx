@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useRef, useState } from "react";
 import { ConfigProvider, theme } from "antd";
 
+import { AuthPage } from "./components/AuthPage";
 import { HeroSection } from "./components/HeroSection";
 import { LandingPage } from "./components/LandingPage";
 import { OptimizationForm } from "./components/OptimizationForm";
@@ -9,7 +10,9 @@ import { WorkspaceDashboard } from "./components/WorkspaceDashboard";
 
 const POLL_INTERVAL_MS = 2500;
 const TOKEN_STORAGE_KEY = "imageflow.jwt";
-const API_BASE_URL_STORAGE_KEY = "imageflow.api-base-url";
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : (import.meta.env.VITE_API_BASE_URL || window.location.origin);
 
 const initialOptions = {
   presetId: "kurly",
@@ -36,9 +39,10 @@ const initialOptions = {
 };
 
 export default function App() {
-  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem(API_BASE_URL_STORAGE_KEY) || import.meta.env.VITE_API_BASE_URL || "http://localhost:8080");
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || "");
   const [user, setUser] = useState(null);
+  const [publicScreen, setPublicScreen] = useState("landing");
   const [files, setFiles] = useState([]);
   const [options, setOptions] = useState(initialOptions);
   const [statusMessage, setStatusMessage] = useState("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
@@ -48,6 +52,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [authProviders, setAuthProviders] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [health, setHealth] = useState({
@@ -61,14 +66,10 @@ export default function App() {
   const pollTimerRef = useRef(null);
   const pollingEnabledRef = useRef(false);
   const dragDepthRef = useRef(0);
-  const healthCheckTimerRef = useRef(null);
   const [pageDropActive, setPageDropActive] = useState(false);
 
   useEffect(() => () => {
     stopPolling();
-    if (healthCheckTimerRef.current) {
-      clearTimeout(healthCheckTimerRef.current);
-    }
   }, []);
 
   useEffect(() => () => {
@@ -78,23 +79,9 @@ export default function App() {
   }, [options.watermarkImagePreviewUrl]);
 
   useEffect(() => {
-    localStorage.setItem(API_BASE_URL_STORAGE_KEY, baseUrl);
-    setHealth((current) => ({ ...current, status: "checking" }));
-
-    if (healthCheckTimerRef.current) {
-      clearTimeout(healthCheckTimerRef.current);
-    }
-
-    healthCheckTimerRef.current = setTimeout(() => {
-      checkHealth();
-    }, 300);
-
-    return () => {
-      if (healthCheckTimerRef.current) {
-        clearTimeout(healthCheckTimerRef.current);
-      }
-    };
-  }, [baseUrl]);
+    checkHealth();
+    loadAuthProviders();
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -330,6 +317,19 @@ export default function App() {
     }
   }
 
+  async function loadAuthProviders() {
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/auth/providers`);
+      if (!response.ok) {
+        throw new Error("provider lookup failed");
+      }
+      const payload = await response.json();
+      setAuthProviders(Array.isArray(payload) ? payload : []);
+    } catch (_error) {
+      setAuthProviders([]);
+    }
+  }
+
   async function restoreSession(accessToken) {
     try {
       const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/auth/me`, {
@@ -346,6 +346,7 @@ export default function App() {
       pollingEnabledRef.current = true;
       setUser(me);
       setAuthError("");
+      setPublicScreen("landing");
     } catch (_error) {
       stopPolling();
       setToken("");
@@ -400,8 +401,9 @@ export default function App() {
         setToken(payload.token);
         setUser(payload.user);
       });
+      setPublicScreen("landing");
       window.scrollTo({ top: 0, behavior: "smooth" });
-      setStatusMessage("로그인이 완료되었습니다. 이미지를 올리면 바로 처리됩니다.");
+      setStatusMessage(mode === "login" ? "로그인이 완료되었습니다. 이미지를 올리면 바로 처리됩니다." : "계정 생성이 완료되었습니다. 워크스페이스에 입장합니다.");
     } catch (submitError) {
       setAuthError(submitError.message);
     } finally {
@@ -427,6 +429,7 @@ export default function App() {
       setPageDropActive(false);
       setError("");
       setAuthError("");
+      setPublicScreen("landing");
       setStatusMessage("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -581,7 +584,6 @@ export default function App() {
 
   const healthView = {
     ...health,
-    baseUrlLabel: baseUrl.replace(/^https?:\/\//, ""),
     lastCheckedLabel: health.lastCheckedAt
       ? new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(health.lastCheckedAt))
       : "-",
@@ -592,7 +594,7 @@ export default function App() {
         : "백엔드 연결에 실패했습니다.",
     description: health.status === "online"
       ? `${health.processingMode || "sync"} 모드 / 배치 최대 ${health.maxBatchSize || "-"}개 / ${health.queueEnabled ? "queue enabled" : "queue disabled"}`
-      : "API 주소와 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
+      : "배포 환경 설정 또는 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
   };
 
   return (
@@ -619,7 +621,7 @@ export default function App() {
           </div>
         ) : null}
 
-        <div key={user ? "workspace" : "landing"} className="app-view-shell">
+        <div key={user ? "workspace" : publicScreen} className="app-view-shell">
           {user ? (
             <>
             <HeroSection user={user} onLogout={handleLogout} health={healthView} />
@@ -629,7 +631,6 @@ export default function App() {
               <main className="workspace-app-grid">
                 <div className="workspace-primary-column">
                 <OptimizationForm
-                  baseUrl={baseUrl}
                   files={files}
                   options={options}
                   error={error}
@@ -637,7 +638,6 @@ export default function App() {
                   user={user}
                   submitLoading={submitLoading}
                   health={healthView}
-                  onBaseUrlChange={setBaseUrl}
                   onFileChange={handleFilesSelected}
                   onFileRemove={handleRemoveFile}
                   onFilesClear={handleClearFiles}
@@ -660,17 +660,21 @@ export default function App() {
               </main>
             </>
           ) : (
-            <LandingPage
-              health={healthView}
-              authProps={{
-                baseUrl,
-                error: authError,
-                submitLoading: authLoading,
-                health: healthView,
-                onBaseUrlChange: setBaseUrl,
-                onSubmit: handleAuthSubmit
-              }}
-            />
+            publicScreen === "auth" ? (
+              <AuthPage
+                error={authError}
+                providers={authProviders}
+                submitLoading={authLoading}
+                health={healthView}
+                onBack={() => setPublicScreen("landing")}
+                onSubmit={handleAuthSubmit}
+              />
+            ) : (
+              <LandingPage
+                health={healthView}
+                onOpenAuth={() => setPublicScreen("auth")}
+              />
+            )
           )}
         </div>
       </div>

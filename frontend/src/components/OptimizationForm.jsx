@@ -1,4 +1,4 @@
-import { Alert, Button, Col, Form, Input, InputNumber, Row, Select, Space, Typography, Upload } from "antd";
+import { Alert, Button, Col, Form, InputNumber, Row, Select, Space, Typography, Upload } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 
 import { CropSelector } from "./CropSelector";
@@ -26,7 +26,6 @@ const cropModeOptions = [
 ];
 
 export function OptimizationForm({
-  baseUrl,
   files,
   options,
   error,
@@ -34,7 +33,6 @@ export function OptimizationForm({
   user,
   submitLoading,
   health,
-  onBaseUrlChange,
   onFileChange,
   onFileRemove,
   onFilesClear,
@@ -217,7 +215,6 @@ export function OptimizationForm({
                 </Paragraph>
             </div>
             <div className="rule-footer-actions">
-              <Input value={baseUrl} onChange={(event) => onBaseUrlChange(event.target.value)} addonBefore="API" />
               <Button type="primary" htmlType="submit" size="large" loading={submitLoading} disabled={health.status !== "online"}>
                 {submitLoading ? "Processing Batch" : "Optimize Current Batch"}
               </Button>

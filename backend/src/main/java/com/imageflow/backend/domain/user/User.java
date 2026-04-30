@@ -44,6 +44,17 @@ public class User extends BaseTimeEntity {
     @Column(name = "credit_balance", nullable = false)
     private int creditBalance;
 
+    @Column(name = "email_verified")
+    private Boolean emailVerified;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", length = 20)
+    private UserRole role;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", length = 20)
+    private AuthProvider authProvider;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ImageJob> imageJobs = new ArrayList<>();
 
@@ -66,6 +77,16 @@ public class User extends BaseTimeEntity {
         this.creditBalance = creditBalance;
     }
 
+    public User(String email, String passwordHash, UserPlan plan, int creditBalance, boolean emailVerified, UserRole role, AuthProvider authProvider) {
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.plan = plan;
+        this.creditBalance = creditBalance;
+        this.emailVerified = emailVerified;
+        this.role = role;
+        this.authProvider = authProvider;
+    }
+
     @PrePersist
     protected void assignApiKey() {
         if (this.apiKey == null || this.apiKey.isBlank()) {
@@ -73,6 +94,15 @@ public class User extends BaseTimeEntity {
         }
         if (this.plan == null) {
             this.plan = UserPlan.FREE;
+        }
+        if (this.role == null) {
+            this.role = UserRole.USER;
+        }
+        if (this.authProvider == null) {
+            this.authProvider = AuthProvider.LOCAL;
+        }
+        if (this.emailVerified == null) {
+            this.emailVerified = false;
         }
     }
 
@@ -117,6 +147,18 @@ public class User extends BaseTimeEntity {
         return creditBalance;
     }
 
+    public boolean isEmailVerified() {
+        return Boolean.TRUE.equals(emailVerified);
+    }
+
+    public UserRole getRole() {
+        return role == null ? UserRole.USER : role;
+    }
+
+    public AuthProvider getAuthProvider() {
+        return authProvider == null ? AuthProvider.LOCAL : authProvider;
+    }
+
     public List<ImageJob> getImageJobs() {
         return imageJobs;
     }
@@ -131,5 +173,21 @@ public class User extends BaseTimeEntity {
 
     public void addUsageRecord(UsageRecord usageRecord) {
         this.usageRecords.add(usageRecord);
+    }
+
+    public void markEmailVerified() {
+        this.emailVerified = true;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
+    }
+
+    public void setAuthProvider(AuthProvider authProvider) {
+        this.authProvider = authProvider;
     }
 }

@@ -65,16 +65,16 @@ export function HeroSection({ user, onLogout, health }) {
             </Space>
             <div className="hero-service-strip">
               <div className="service-chip">
-                <span>API</span>
-                <strong>{health.baseUrlLabel}</strong>
-              </div>
-              <div className="service-chip">
                 <span>Mode</span>
                 <strong>{health.processingMode || "-"}</strong>
               </div>
               <div className="service-chip">
                 <span>Batch Limit</span>
                 <strong>{health.maxBatchSize || "-"}</strong>
+              </div>
+              <div className="service-chip">
+                <span>Queue</span>
+                <strong>{health.queueEnabled ? "Enabled" : "Disabled"}</strong>
               </div>
               <div className="service-chip">
                 <span>Last Check</span>

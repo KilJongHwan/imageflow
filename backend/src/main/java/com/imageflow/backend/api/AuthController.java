@@ -14,6 +14,7 @@ import com.imageflow.backend.domain.auth.dto.AuthResponse;
 import com.imageflow.backend.domain.auth.dto.AuthUserResponse;
 import com.imageflow.backend.domain.auth.dto.LoginRequest;
 import com.imageflow.backend.domain.auth.dto.SignupRequest;
+import com.imageflow.backend.domain.auth.dto.SocialProviderResponse;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -34,6 +35,11 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @GetMapping("/providers")
+    public java.util.List<SocialProviderResponse> providers() {
+        return authService.socialProviders();
     }
 
     @GetMapping("/me")

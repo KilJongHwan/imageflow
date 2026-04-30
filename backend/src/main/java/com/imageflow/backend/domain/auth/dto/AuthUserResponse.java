@@ -9,6 +9,9 @@ public record AuthUserResponse(
         UUID id,
         String email,
         String plan,
+        String role,
+        String authProvider,
+        boolean emailVerified,
         int creditBalance,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -18,6 +21,9 @@ public record AuthUserResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getPlan().name(),
+                user.getRole().name(),
+                user.getAuthProvider().name(),
+                user.isEmailVerified(),
                 user.getCreditBalance(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()

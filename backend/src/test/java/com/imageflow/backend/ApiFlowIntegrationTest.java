@@ -45,20 +45,7 @@ class ApiFlowIntegrationTest {
 
     @Test
     void signsUpUploadsImageJobAndReadsItBack() throws Exception {
-        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "hello@imageflow.dev",
-                                  "password": "password123"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.email").value("hello@imageflow.dev"))
-                .andExpect(jsonPath("$.user.plan").value("FREE"))
-                .andReturn();
-
-        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+        String token = signupAndVerify("hello@imageflow.dev");
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -107,18 +94,7 @@ class ApiFlowIntegrationTest {
 
     @Test
     void createsPromptBasedImageGenerationJobWhenWorkerQueueIsEnabled() throws Exception {
-        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "prompt@imageflow.dev",
-                                  "password": "password123"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+        String token = signupAndVerify("prompt@imageflow.dev");
 
         mockMvc.perform(post("/api/image-jobs")
                         .header("Authorization", "Bearer " + token)
@@ -135,18 +111,7 @@ class ApiFlowIntegrationTest {
 
     @Test
     void rejectsImageJobWhenUserDoesNotHaveEnoughCredits() throws Exception {
-        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "free@imageflow.dev",
-                                  "password": "password123"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+        String token = signupAndVerify("free@imageflow.dev");
 
         MockMultipartFile[] batch = tenPngFiles();
 
@@ -195,18 +160,7 @@ class ApiFlowIntegrationTest {
 
     @Test
     void uploadsMultipleImagesAndDownloadsZip() throws Exception {
-        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "batch@imageflow.dev",
-                                  "password": "password123"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+        String token = signupAndVerify("batch@imageflow.dev");
 
         MockMultipartFile file1 = new MockMultipartFile(
                 "files",
@@ -247,18 +201,7 @@ class ApiFlowIntegrationTest {
 
     @Test
     void rejectsZipArchiveWithTooManyEntries() throws Exception {
-        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "zip-limit@imageflow.dev",
-                                  "password": "password123"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String token = JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
+        String token = signupAndVerify("zip-limit@imageflow.dev");
 
         MockMultipartFile zipArchive = new MockMultipartFile(
                 "files",
@@ -342,5 +285,22 @@ class ApiFlowIntegrationTest {
     private String fileNameOf(String path) {
         int lastSlash = path.lastIndexOf('/');
         return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
+    }
+
+    private String signupAndVerify(String email) throws Exception {
+        MvcResult signupResult = mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "password": "password123"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.email").value(email))
+                .andExpect(jsonPath("$.user.emailVerified").value(true))
+                .andReturn();
+
+        return JsonTestUtils.read(signupResult.getResponse().getContentAsString(), "token");
     }
 }

@@ -7,8 +7,6 @@ import {
   RocketOutlined
 } from "@ant-design/icons";
 
-import { AuthPanel } from "./AuthPanel";
-
 const { Paragraph, Title, Text } = Typography;
 
 const planItems = [
@@ -71,7 +69,7 @@ function HealthRibbon({ health }) {
   );
 }
 
-export function LandingPage({ authProps, health }) {
+export function LandingPage({ health, onOpenAuth }) {
   return (
     <div className="landing-shell">
       <section className="marketing-hero">
@@ -83,7 +81,8 @@ export function LandingPage({ authProps, health }) {
           <Space size={12}>
             <a href="#pricing" className="nav-link">Pricing</a>
             <a href="#faq" className="nav-link">FAQ</a>
-            <Button type="primary" href="#get-started">Get Started</Button>
+            <Button onClick={onOpenAuth}>Login</Button>
+            <Button type="primary" onClick={onOpenAuth}>Get Started</Button>
           </Space>
         </div>
 
@@ -100,7 +99,7 @@ export function LandingPage({ authProps, health }) {
               </Paragraph>
               <HealthRibbon health={health} />
               <Space wrap size={[12, 12]}>
-                <Button type="primary" size="large" href="#get-started" icon={<RocketOutlined />}>
+                <Button type="primary" size="large" onClick={onOpenAuth} icon={<RocketOutlined />}>
                   Get Started
                 </Button>
                 <Button size="large" href="#pricing">
@@ -249,14 +248,17 @@ export function LandingPage({ authProps, health }) {
       <section id="get-started" className="landing-section onboarding-section">
         <div className="section-heading">
           <Tag color="purple">Get Started</Tag>
-          <Title level={2}>가입 후 바로 워크스페이스를 열고 첫 배치를 돌려보세요</Title>
+          <Title level={2}>로그인 화면에서 계정을 만들고 워크스페이스로 들어가세요</Title>
           <Paragraph>
-            랜딩은 서비스 설명을, 아래 카드는 실제 진입 폼을 담당합니다. 포트폴리오에서도 SaaS 구조가 분리돼 보이게 만듭니다.
+            랜딩은 서비스 설명에 집중하고, 실제 로그인과 회원가입은 별도 인증 화면에서 처리하도록 분리했습니다.
           </Paragraph>
         </div>
-        <div className="auth-panel-wrap">
-          <AuthPanel {...authProps} />
-        </div>
+        <Space direction="vertical" size={16} className="auth-panel-wrap">
+          <Button type="primary" size="large" onClick={onOpenAuth} icon={<ArrowRightOutlined />}>
+            Open Login Page
+          </Button>
+          <Text type="secondary">실제 SaaS처럼 랜딩과 인증 진입 화면을 분리했습니다.</Text>
+        </Space>
       </section>
 
       <section id="faq" className="landing-section faq-section">

@@ -19,6 +19,17 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -29,6 +40,17 @@ app:
     jwt:
       secret: ${JWT_SECRET:change-this-demo-jwt-secret-key-at-least-32chars}
       expiration-seconds: ${JWT_EXPIRATION_SECONDS:604800}
+    mail:
+      from: ${APP_AUTH_MAIL_FROM:no-reply@imageflow.local}
+      verification-base-url: ${APP_AUTH_MAIL_VERIFICATION_BASE_URL:http://localhost:8080}
+    master:
+      email: ${APP_MASTER_EMAIL:imageflowmaster@master}
+      password: ${APP_MASTER_PASSWORD:imageflow123!}
+    social:
+      google:
+        auth-url: ${APP_AUTH_SOCIAL_GOOGLE_AUTH_URL:}
+      naver:
+        auth-url: ${APP_AUTH_SOCIAL_NAVER_AUTH_URL:}
   processing:
     mode: ${APP_PROCESSING_MODE:worker}
   queue:

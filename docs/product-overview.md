@@ -40,7 +40,9 @@ That increases:
 
 ### Workspace flow
 
-- JWT sign up and login
+- email verification-based signup
+- JWT login after verification
+- Google / Naver social sign-in entry buttons
 - dashboard-style workspace home
 - single image upload
 - multi-image upload
@@ -58,6 +60,8 @@ That increases:
 - PostgreSQL persistence
 - Redis-backed async queue
 - Python image worker
+- optional SMTP-backed verification email sending
+- master account bootstrap through environment variables
 - local storage with R2/S3 migration path
 - health status with queue and storage snapshot
 
