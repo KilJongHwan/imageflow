@@ -233,6 +233,107 @@ Frontend (React)
 
 하도록 바꾸었습니다. 이 작업은 기능 추가보다도 “어떤 모드에서 무엇이 실제로 운영 기준인가”를 분명하게 만드는 안정화 작업이었습니다.
 
+## 기술적 난제와 해결 과정
+
+### 1. ZIP 다운로드가 커질수록 메모리 사용량이 커지는 문제
+
+문제:
+
+- 여러 결과 이미지를 한 번에 ZIP으로 묶을 때, 파일 전체를 메모리에 모으는 방식은 배치 크기가 커질수록 서버 메모리 압박이 커질 수 있었습니다.
+
+원인 분석:
+
+- 다운로드 기능을 단순히 byte array 중심으로 만들면 구현은 쉽지만, 결과 파일 수가 늘어날수록 응답 생성 시점 메모리 점유가 커집니다.
+
+해결:
+
+- `StreamingResponseBody + ZipOutputStream`으로 바꿔, 파일을 한 번에 모두 적재하지 않고 스트리밍 방식으로 응답하도록 변경했습니다.
+
+왜 이 방식이 맞았는가:
+
+- 이 프로젝트의 핵심 문제 중 하나가 대량 이미지 처리이기 때문에, 다운로드도 같은 관점에서 메모리 리스크를 줄이는 구조가 필요했습니다.
+
+코드 근거:
+
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:389)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:418)
+
+### 2. ZIP 업로드가 압축 폭탄이나 과도한 해제량으로 이어질 수 있는 문제
+
+문제:
+
+- 사용자가 ZIP 파일을 올릴 수 있게 하면 편의성은 커지지만, 압축 해제 후 용량이 과도하게 커지거나 엔트리 수가 너무 많은 경우 서버 리소스를 쉽게 잠식할 수 있습니다.
+
+원인 분석:
+
+- ZIP은 업로드된 파일 크기만 보고는 실제 해제량을 알기 어렵고, 엔트리 수도 다양해서 단순 파일 확장자 검증만으로는 부족했습니다.
+
+해결:
+
+- 엔트리 수, 엔트리당 최대 바이트, 전체 압축 해제 바이트를 각각 제한했습니다.
+- 현재 기준으로는 `32개 엔트리`, `20MB per entry`, `50MB total extracted size`를 넘기면 즉시 거절합니다.
+
+왜 이 방식이 맞았는가:
+
+- 업로드 편의성을 유지하면서도 서버가 무제한으로 압축 해제를 수행하지 않게 하는 현실적인 안전장치가 필요했습니다.
+
+코드 근거:
+
+- [application.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/resources/application.yaml:67)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:611)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:632)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:664)
+
+### 3. 호스트 백엔드와 Docker 워커 사이에서 저장 경로가 어긋나는 문제
+
+문제:
+
+- 백엔드는 호스트에서 실행되고 Python worker는 Docker에서 실행될 때, 작업은 `SUCCEEDED`로 끝났는데 결과 이미지가 실제로는 보이지 않는 문제가 있었습니다.
+
+원인 분석:
+
+- 워커가 결과 파일을 컨테이너 내부 경로에 저장하거나 `localhost` 기준 URL을 잘못 해석하면, 백엔드가 기대하는 파일 위치와 실제 생성 위치가 달라집니다.
+
+해결:
+
+- worker가 `localhost` URL을 `BACKEND_BASE_URL` 기준으로 재작성하도록 수정했습니다.
+- Docker compose에 shared `storage` volume과 `STORAGE_ROOT`를 추가해, 워커가 호스트와 같은 결과 저장소를 바라보도록 맞췄습니다.
+
+왜 이 방식이 맞았는가:
+
+- 이 문제는 단순 버그 수정이 아니라 `비동기 워커 + 로컬 스토리지` 구조에서 흔히 생기는 운영 이슈였고, 실제 배포 감각을 보여주는 해결 사례였습니다.
+
+코드 근거:
+
+- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:380)
+- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:454)
+- [docker-compose.yml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docker-compose.yml:1)
+
+### 4. 프런트 상태와 화면 표시가 어긋나는 문제
+
+문제:
+
+- 드래그 앤 드롭 업로드와 배치 선택이 늘어나면서, 화면에서 파일을 지웠는데 내부 상태에는 남아 있거나, 반대로 상태는 바뀌었는데 UI가 늦게 따라오는 문제가 생길 수 있었습니다.
+
+원인 분석:
+
+- 업로드 컴포넌트 내부 상태와 앱 전역 상태가 동시에 파일 목록을 관리하면 동기화가 어긋나기 쉽습니다.
+
+해결:
+
+- 업로드 목록을 제어형 상태로 바꾸고, 파일 추가/삭제/초기화를 모두 `App.jsx` 기준 단일 상태 흐름으로 통합했습니다.
+- 로그아웃 시 polling, watermark preview URL, 업로드 상태까지 함께 정리하도록 맞췄습니다.
+
+왜 이 방식이 맞았는가:
+
+- 이 프로젝트는 “배치 작업 워크스페이스”가 핵심이라, 파일 목록과 상태 메시지가 어긋나면 사용자 신뢰가 크게 떨어집니다.
+
+코드 근거:
+
+- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:94)
+- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:263)
+- [UploadQueue.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/UploadQueue.jsx:1)
+
 ## 성과로 보여줄 수 있는 부분
 
 - SaaS형 랜딩 페이지, Pricing, Get Started 흐름, 로그인 후 대시보드형 워크스페이스 구현
