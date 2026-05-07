@@ -91,7 +91,7 @@ export function LandingPage({ health, onOpenAuth }) {
             <Space direction="vertical" size={18} className="landing-copy-stack">
               <Tag color="gold" className="landing-kicker">Seller Image Platform</Tag>
               <Title className="landing-title">
-                상품 이미지를 더 빠르게 올리고, 더 가볍게 배포하고, 반복 작업은 줄이세요.
+                상품 이미지를 더 빠르게 업로드하고, 자동으로 최적화하세요.
               </Title>
               <Paragraph className="landing-description">
                 ImageFlow는 셀러와 커머스 운영팀을 위한 이미지 최적화 SaaS입니다.
