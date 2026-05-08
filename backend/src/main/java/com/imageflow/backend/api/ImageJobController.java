@@ -25,6 +25,7 @@ import com.imageflow.backend.domain.image.dto.CreateImageJobRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobBatchResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResultUpdateRequest;
+import com.imageflow.backend.common.ops.QueueBackpressureService;
 import com.imageflow.backend.common.ops.RateLimitService;
 import com.imageflow.backend.domain.auth.AuthService;
 import com.imageflow.backend.domain.user.User;
@@ -36,17 +37,20 @@ public class ImageJobController {
     private final ImageJobService imageJobService;
     private final AuthService authService;
     private final RateLimitService rateLimitService;
+    private final QueueBackpressureService queueBackpressureService;
     private final int uploadRequestsPerMinute;
 
     public ImageJobController(
             ImageJobService imageJobService,
             AuthService authService,
             RateLimitService rateLimitService,
+            QueueBackpressureService queueBackpressureService,
             @Value("${app.rate-limit.upload-requests-per-minute:30}") int uploadRequestsPerMinute
     ) {
         this.imageJobService = imageJobService;
         this.authService = authService;
         this.rateLimitService = rateLimitService;
+        this.queueBackpressureService = queueBackpressureService;
         this.uploadRequestsPerMinute = uploadRequestsPerMinute;
     }
 
@@ -58,6 +62,7 @@ public class ImageJobController {
     ) {
         User user = currentUser(authorizationHeader);
         rateLimitService.checkLimit("image-job-create", user.getId().toString(), uploadRequestsPerMinute);
+        queueBackpressureService.checkWritable();
         return imageJobService.create(user, request);
     }
 
@@ -86,6 +91,7 @@ public class ImageJobController {
     ) {
         User user = currentUser(authorizationHeader);
         rateLimitService.checkLimit("image-job-upload", user.getId().toString(), uploadRequestsPerMinute);
+        queueBackpressureService.checkWritable();
         return imageJobService.createUploadJob(
                 user,
                 file,
@@ -134,6 +140,7 @@ public class ImageJobController {
     ) {
         User user = currentUser(authorizationHeader);
         rateLimitService.checkLimit("image-job-uploads", user.getId().toString(), uploadRequestsPerMinute);
+        queueBackpressureService.checkWritable();
         return imageJobService.createUploadJobs(
                 user,
                 files,
@@ -157,7 +164,7 @@ public class ImageJobController {
         );
     }
 
-    @GetMapping("/{imageJobId}")
+    @GetMapping("/{imageJobId:[0-9a-fA-F\\-]{36}}")
     public ImageJobResponse get(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @PathVariable UUID imageJobId
@@ -178,7 +185,7 @@ public class ImageJobController {
         return imageJobService.downloadJobs(currentUser(authorizationHeader), jobIds);
     }
 
-    @PatchMapping("/{imageJobId}/result")
+    @PatchMapping("/{imageJobId:[0-9a-fA-F\\-]{36}}/result")
     public ImageJobResponse updateResult(
             @PathVariable UUID imageJobId,
             @RequestBody ImageJobResultUpdateRequest request

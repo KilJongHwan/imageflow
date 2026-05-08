@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
@@ -17,43 +18,59 @@ BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8080")
 R2_PUBLIC_BASE_URL = os.getenv("R2_PUBLIC_BASE_URL", "https://example-r2-public-url.invalid")
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", "")
 POLL_TIMEOUT_SECONDS = int(os.getenv("POLL_TIMEOUT_SECONDS", "5"))
+WORKER_CONCURRENCY = max(1, int(os.getenv("WORKER_CONCURRENCY", "3")))
 
 
 def main():
     client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    print(f"[worker] listening on redis://{REDIS_HOST}:{REDIS_PORT} queue={QUEUE_KEY}")
+    print(
+        f"[worker] listening on redis://{REDIS_HOST}:{REDIS_PORT} "
+        f"queue={QUEUE_KEY} concurrency={WORKER_CONCURRENCY}"
+    )
 
-    while True:
-        _, payload = client.blpop(QUEUE_KEY, timeout=POLL_TIMEOUT_SECONDS) or (None, None)
-        if payload is None:
-            continue
+    with ThreadPoolExecutor(max_workers=WORKER_CONCURRENCY) as executor:
+        active_futures = set()
 
-        job = json.loads(payload)
-        print(f"[worker] received job {job['jobId']}")
+        while True:
+            active_futures = {future for future in active_futures if not future.done()}
 
-        try:
-            update_job(job["jobId"], {"status": "PROCESSING"})
-            result = optimize_image(job)
-            update_job(
-                job["jobId"],
-                {
-                    "status": "SUCCEEDED",
-                    "resultImageUrl": result["resultImageUrl"],
-                    "outputObjectKey": result["outputObjectKey"],
-                    "sourceFileSizeBytes": result["sourceFileSizeBytes"],
-                    "resultFileSizeBytes": result["resultFileSizeBytes"],
-                },
-            )
-            print(f"[worker] job succeeded {job['jobId']}")
-        except Exception as error:
-            update_job(
-                job["jobId"],
-                {
-                    "status": "FAILED",
-                    "failureReason": str(error),
-                },
-            )
-            print(f"[worker] job failed {job['jobId']}: {error}")
+            if len(active_futures) >= WORKER_CONCURRENCY:
+                time.sleep(0.1)
+                continue
+
+            _, payload = client.blpop(QUEUE_KEY, timeout=POLL_TIMEOUT_SECONDS) or (None, None)
+            if payload is None:
+                continue
+
+            job = json.loads(payload)
+            print(f"[worker] received job {job['jobId']}")
+            active_futures.add(executor.submit(process_job, job))
+
+
+def process_job(job):
+    try:
+        update_job(job["jobId"], {"status": "PROCESSING"})
+        result = optimize_image(job)
+        update_job(
+            job["jobId"],
+            {
+                "status": "SUCCEEDED",
+                "resultImageUrl": result["resultImageUrl"],
+                "outputObjectKey": result["outputObjectKey"],
+                "sourceFileSizeBytes": result["sourceFileSizeBytes"],
+                "resultFileSizeBytes": result["resultFileSizeBytes"],
+            },
+        )
+        print(f"[worker] job succeeded {job['jobId']}")
+    except Exception as error:
+        update_job(
+            job["jobId"],
+            {
+                "status": "FAILED",
+                "failureReason": str(error),
+            },
+        )
+        print(f"[worker] job failed {job['jobId']}: {error}")
 
 
 def optimize_image(job):

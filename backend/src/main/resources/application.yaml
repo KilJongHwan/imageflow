@@ -1,8 +1,8 @@
 spring:
   servlet:
     multipart:
-      max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}
-      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:20MB}
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:500MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:500MB}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/imageflow}
     username: ${DB_USERNAME:imageflow}
@@ -58,6 +58,7 @@ app:
     image-jobs-key: ${APP_QUEUE_IMAGE_JOBS_KEY:imageflow:image-jobs}
     retry-attempts: ${APP_QUEUE_RETRY_ATTEMPTS:3}
     retry-delay-millis: ${APP_QUEUE_RETRY_DELAY_MILLIS:200}
+    max-backlog-depth: ${APP_QUEUE_MAX_BACKLOG_DEPTH:100}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   storage:
@@ -66,7 +67,7 @@ app:
   upload:
     max-batch-size: ${APP_UPLOAD_MAX_BATCH_SIZE:10}
     max-zip-entry-count: ${APP_UPLOAD_MAX_ZIP_ENTRY_COUNT:32}
-    max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:20971520}
-    max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:52428800}
+    max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:52428800}
+    max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:209715200}
   rate-limit:
     upload-requests-per-minute: ${APP_RATE_LIMIT_UPLOAD_REQUESTS_PER_MINUTE:30}

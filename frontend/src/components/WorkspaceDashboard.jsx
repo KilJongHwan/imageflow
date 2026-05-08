@@ -141,26 +141,34 @@ export function WorkspaceDashboard({ user, recentJobs, jobs, health }) {
             <Tag color="cyan">Ops Snapshot</Tag>
             <strong>Async Worker Ready</strong>
             <p>큐 기반 비동기 처리, 저장소 전환, rate limit와 retry 구조를 운영형으로 정리하는 방향을 보여줍니다.</p>
-            <div className="ops-mini-grid">
-              <div>
-                <span>Queue</span>
-                <strong>{health.queueEnabled ? "Enabled" : "Disabled"}</strong>
-              </div>
+              <div className="ops-mini-grid">
+                <div>
+                  <span>Queue</span>
+                  <strong>{health.queueEnabled ? "Enabled" : "Disabled"}</strong>
+                </div>
               <div>
                 <span>Storage</span>
                 <strong>{health.storageProvider || "local"}</strong>
               </div>
-              <div>
-                <span>Queue Depth</span>
-                <strong>{health.queueDepth ?? "-"}</strong>
-              </div>
-              <div>
-                <span>Rate Limit</span>
-                <strong>{health.uploadRequestsPerMinute || "-"} rpm</strong>
+                <div>
+                  <span>Queue Depth</span>
+                  <strong>{health.queueDepth ?? "-"}</strong>
+                </div>
+                <div>
+                  <span>Backlog Limit</span>
+                  <strong>{health.maxQueueBacklogDepth || "-"}</strong>
+                </div>
+                <div>
+                  <span>Rate Limit</span>
+                  <strong>{health.uploadRequestsPerMinute || "-"} rpm</strong>
+                </div>
+                <div>
+                  <span>Queue Writable</span>
+                  <strong>{health.queueWritable ? "Yes" : "Throttled"}</strong>
+                </div>
               </div>
             </div>
-          </div>
-        </Col>
+          </Col>
       </Row>
     </div>
   );

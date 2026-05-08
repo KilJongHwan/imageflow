@@ -3,6 +3,8 @@ package com.imageflow.backend.queue;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +41,15 @@ public class ImageJobQueuePublisher {
         }
         try {
             String payload = objectMapper.writeValueAsString(message);
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        publishWithRetry(payload);
+                    }
+                });
+                return;
+            }
             publishWithRetry(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("failed to serialize image job message", exception);

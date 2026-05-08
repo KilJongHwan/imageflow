@@ -38,6 +38,40 @@ const initialOptions = {
   cropHeight: ""
 };
 
+function formatApiErrorMessage(message) {
+  if (!message) {
+    return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.";
+  }
+
+  if (message.includes("zip entry is too large")) {
+    return "ZIP 안의 개별 이미지가 너무 큽니다. 한 장당 50MB 이하 이미지로 다시 압축해서 업로드해주세요.";
+  }
+
+  if (message.includes("zip archive is too large after extraction")) {
+    return "ZIP 전체 압축 해제 용량이 너무 큽니다. 이미지 수를 줄이거나 ZIP을 나눠서 업로드해주세요.";
+  }
+
+  if (message.includes("zip archive contains too many entries")) {
+    return "ZIP 안의 파일 개수가 너무 많습니다. 한 번에 32개 이하로 나눠 업로드해주세요.";
+  }
+
+  if (message.includes("batch upload supports up to")) {
+    return "한 번에 처리할 수 있는 이미지 수를 초과했습니다. 배치를 나눠 다시 업로드해주세요.";
+  }
+
+  if (message.includes("Maximum upload size exceeded")
+    || message.includes("max-request-size")
+    || message.includes("max-file-size")) {
+    return "업로드 용량이 너무 큽니다. 파일 크기를 줄이거나 여러 번 나눠 업로드해주세요.";
+  }
+
+  if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
+    return "백엔드 연결이 끊겼습니다. 서버 실행 상태를 확인한 뒤 다시 시도해주세요.";
+  }
+
+  return message;
+}
+
 export default function App() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY) || "");
@@ -60,6 +94,9 @@ export default function App() {
     processingMode: "",
     maxBatchSize: null,
     queueEnabled: false,
+    queueDepth: 0,
+    maxQueueBacklogDepth: null,
+    queueWritable: true,
     lastCheckedAt: "",
     message: ""
   });
@@ -213,6 +250,15 @@ export default function App() {
     }
   }
 
+  function isZipFile(file) {
+    const filename = (file?.name || "").toLowerCase();
+    const mimeType = (file?.type || "").toLowerCase();
+
+    return filename.endsWith(".zip")
+      || mimeType === "application/zip"
+      || mimeType === "application/x-zip-compressed";
+  }
+
   function handleRemoveFile(fileToRemove) {
     setFiles((currentFiles) =>
       currentFiles.filter(
@@ -302,6 +348,9 @@ export default function App() {
         processingMode: payload.processingMode || "",
         maxBatchSize: payload.maxBatchSize ?? null,
         queueEnabled: Boolean(payload.queueEnabled),
+        queueDepth: payload.queueDepth ?? 0,
+        maxQueueBacklogDepth: payload.maxQueueBacklogDepth ?? null,
+        queueWritable: payload.queueWritable ?? true,
         lastCheckedAt: payload.timestamp || new Date().toISOString(),
         message: ""
       });
@@ -311,6 +360,9 @@ export default function App() {
         processingMode: "",
         maxBatchSize: null,
         queueEnabled: false,
+        queueDepth: 0,
+        maxQueueBacklogDepth: null,
+        queueWritable: true,
         lastCheckedAt: new Date().toISOString(),
         message: "API health endpoint에 연결할 수 없습니다."
       });
@@ -405,7 +457,7 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       setStatusMessage(mode === "login" ? "로그인이 완료되었습니다. 이미지를 올리면 바로 처리됩니다." : "계정 생성이 완료되었습니다. 워크스페이스에 입장합니다.");
     } catch (submitError) {
-      setAuthError(submitError.message);
+      setAuthError(formatApiErrorMessage(submitError.message));
     } finally {
       setAuthLoading(false);
     }
@@ -459,8 +511,11 @@ export default function App() {
     setSubmitLoading(true);
     setStatusMessage("원본을 업로드하고 처리 작업을 준비하는 중입니다.");
 
+    const containsArchive = files.some(isZipFile);
+    const shouldUseBatchEndpoint = files.length > 1 || containsArchive;
+
     const formData = new FormData();
-    if (files.length === 1) {
+    if (!shouldUseBatchEndpoint) {
       formData.append("file", files[0]);
     } else {
       files.forEach((file) => formData.append("files", file));
@@ -486,7 +541,7 @@ export default function App() {
     if (options.cropHeight) formData.append("cropHeight", options.cropHeight);
 
     try {
-      const endpoint = files.length === 1 ? "/api/image-jobs/upload" : "/api/image-jobs/uploads";
+      const endpoint = shouldUseBatchEndpoint ? "/api/image-jobs/uploads" : "/api/image-jobs/upload";
       const created = await request(endpoint, {
         method: "POST",
         body: formData
@@ -504,10 +559,11 @@ export default function App() {
         pollingEnabledRef.current = true;
         pollJob(nextJobs[0].id);
       } else {
-        loadRecentJobs();
+        pollingEnabledRef.current = true;
+        pollBatch(nextJobs.map((job) => job.id));
       }
     } catch (submitError) {
-      setError(submitError.message);
+      setError(formatApiErrorMessage(submitError.message));
       setStatusMessage("요청을 완료하지 못했습니다.");
     } finally {
       setSubmitLoading(false);
@@ -546,8 +602,57 @@ export default function App() {
       pollTimerRef.current = setTimeout(() => pollJob(jobId), POLL_INTERVAL_MS);
     } catch (pollError) {
       stopPolling();
-      setError(pollError.message);
+      setError(formatApiErrorMessage(pollError.message));
       setStatusMessage("상태 확인이 중단되었습니다.");
+    }
+  }
+
+  async function pollBatch(jobIds) {
+    if (!pollingEnabledRef.current || !jobIds.length) {
+      return;
+    }
+
+    stopPolling();
+    pollingEnabledRef.current = true;
+
+    try {
+      const latestJobs = await Promise.all(
+        jobIds.map((jobId) => request(`/api/image-jobs/${jobId}`))
+      );
+
+      if (!pollingEnabledRef.current) {
+        return;
+      }
+
+      setJobs(latestJobs);
+      mergeJobsIntoHistory(latestJobs);
+      setSelectedJobId((currentSelectedId) => {
+        if (currentSelectedId && latestJobs.some((job) => job.id === currentSelectedId)) {
+          return currentSelectedId;
+        }
+        return latestJobs[0]?.id || "";
+      });
+
+      const completedCount = latestJobs.filter((job) => job.status === "SUCCEEDED").length;
+      const failedCount = latestJobs.filter((job) => job.status === "FAILED").length;
+      const processingCount = latestJobs.length - completedCount - failedCount;
+
+      if (processingCount === 0) {
+        stopPolling();
+        if (failedCount > 0) {
+          setStatusMessage(`${latestJobs.length}개 중 ${completedCount}개 완료, ${failedCount}개 실패했습니다.`);
+        } else {
+          setStatusMessage(`${latestJobs.length}개 작업이 모두 완료되었습니다.`);
+        }
+        return;
+      }
+
+      setStatusMessage(`${latestJobs.length}개 중 ${completedCount}개 완료, ${processingCount}개 처리 중입니다.`);
+      pollTimerRef.current = setTimeout(() => pollBatch(jobIds), POLL_INTERVAL_MS);
+    } catch (pollError) {
+      stopPolling();
+      setError(formatApiErrorMessage(pollError.message));
+      setStatusMessage("배치 상태 확인이 중단되었습니다.");
     }
   }
 
@@ -578,7 +683,7 @@ export default function App() {
       anchor.click();
       URL.revokeObjectURL(objectUrl);
     } catch (downloadError) {
-      setError(downloadError.message);
+      setError(formatApiErrorMessage(downloadError.message));
     }
   }
 
@@ -593,7 +698,7 @@ export default function App() {
         ? "백엔드 연결 상태를 확인하는 중입니다."
         : "백엔드 연결에 실패했습니다.",
     description: health.status === "online"
-      ? `${health.processingMode || "sync"} 모드 / 배치 최대 ${health.maxBatchSize || "-"}개 / ${health.queueEnabled ? "queue enabled" : "queue disabled"}`
+      ? `${health.processingMode || "sync"} 모드 / 배치 최대 ${health.maxBatchSize || "-"}개 / ${health.queueEnabled ? `queue ${health.queueDepth ?? 0}/${health.maxQueueBacklogDepth || "-"}` : "queue disabled"}`
       : "배포 환경 설정 또는 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
   };
 

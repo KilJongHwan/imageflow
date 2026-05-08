@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.imageflow.backend.common.ops.QueueBackpressureService;
+
 @RestController
 @RequestMapping("/api")
 public class HealthController {
@@ -21,6 +23,7 @@ public class HealthController {
     private final int uploadRequestsPerMinute;
     private final StringRedisTemplate stringRedisTemplate;
     private final String queueKey;
+    private final QueueBackpressureService queueBackpressureService;
 
     public HealthController(
             @Value("${app.processing.mode:worker}") String processingMode,
@@ -29,7 +32,8 @@ public class HealthController {
             @Value("${app.storage.provider:local}") String storageProvider,
             @Value("${app.rate-limit.upload-requests-per-minute:30}") int uploadRequestsPerMinute,
             @Value("${app.queue.image-jobs-key:imageflow:image-jobs}") String queueKey,
-            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+            QueueBackpressureService queueBackpressureService
     ) {
         this.processingMode = processingMode;
         this.queueEnabled = queueEnabled;
@@ -38,20 +42,23 @@ public class HealthController {
         this.uploadRequestsPerMinute = uploadRequestsPerMinute;
         this.queueKey = queueKey;
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        this.queueBackpressureService = queueBackpressureService;
     }
 
     @GetMapping("/health")
     public Map<String, Object> health() {
-        return Map.of(
-                "status", "ok",
-                "service", "imageflow-backend",
-                "timestamp", Instant.now().toString(),
-                "processingMode", processingMode,
-                "queueEnabled", queueEnabled,
-                "maxBatchSize", maxBatchSize,
-                "storageProvider", storageProvider,
-                "uploadRequestsPerMinute", uploadRequestsPerMinute,
-                "queueDepth", resolveQueueDepth()
+        return Map.ofEntries(
+                Map.entry("status", "ok"),
+                Map.entry("service", "imageflow-backend"),
+                Map.entry("timestamp", Instant.now().toString()),
+                Map.entry("processingMode", processingMode),
+                Map.entry("queueEnabled", queueEnabled),
+                Map.entry("maxBatchSize", maxBatchSize),
+                Map.entry("storageProvider", storageProvider),
+                Map.entry("uploadRequestsPerMinute", uploadRequestsPerMinute),
+                Map.entry("queueDepth", resolveQueueDepth()),
+                Map.entry("maxQueueBacklogDepth", queueBackpressureService.maxBacklogDepth()),
+                Map.entry("queueWritable", isQueueWritable())
         );
     }
 
@@ -65,5 +72,14 @@ public class HealthController {
         } catch (RuntimeException exception) {
             return -1;
         }
+    }
+
+    private boolean isQueueWritable() {
+        long depth = resolveQueueDepth();
+        int limit = queueBackpressureService.maxBacklogDepth();
+        if (limit <= 0 || depth < 0) {
+            return true;
+        }
+        return depth < limit;
     }
 }
