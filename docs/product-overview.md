@@ -1,114 +1,34 @@
 # Product Overview
 
-## One-Line Summary
+이 문서는 [README.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/README.md:1) 내용을 기준으로 요약한 제품 개요 문서입니다.
 
-ImageFlow is a SaaS-style workspace for sellers and commerce operators who need to prepare lighter, consistent, marketplace-ready product images faster.
+## 프로젝트 성격
 
-## Who It Is For
+ImageFlow는 커머스 상품 이미지를 정해진 규격으로 빠르게 가공하기 위한 이미지 최적화 워크스페이스입니다.
 
-- marketplace sellers
-- commerce operators and MD teams
-- small brand owners
-- non-designers who still need to prepare many product assets
+## 현재 구현 범위
 
-## Core Problem
+- 로그인 전 랜딩, Pricing, Get Started
+- 로그인 후 대시보드형 워크스페이스
+- 단일/다중 이미지 업로드
+- ZIP 업로드
+- 수동 크롭, center-crop, fit
+- 리사이즈 및 품질 조절
+- 선택적 워터마크
+- 결과 미리보기와 배치 ZIP 다운로드
+- Redis + Python worker 기반 비동기 처리 구조
 
-Commerce image preparation is repetitive and expensive.
+## 보호 장치
 
-Teams repeatedly:
+- 배치 최대 `10개`
+- ZIP 최대 `32개 엔트리`
+- ZIP 엔트리당 최대 `50MB`
+- ZIP 전체 압축 해제 기준 최대 `200MB`
+- 업로드 rate limit `30 rpm`
+- queue backlog 상한 `100`
+- worker concurrency `3`
 
-- upload oversized files
-- crop the same kind of product photos again and again
-- resize inconsistently across channels
-- manually export multiple images one by one
+## 비고
 
-That increases:
-
-- upload and delivery traffic
-- storage usage
-- repetitive manual work
-- inconsistency across product listings
-
-## Current Product Scope
-
-### Marketing and entry flow
-
-- SaaS landing page
-- pricing section
-- get started CTA
-- separate logged-out and logged-in experiences
-
-### Workspace flow
-
-- email verification-based signup
-- JWT login after verification
-- Google / Naver social sign-in entry buttons
-- dashboard-style workspace home
-- single image upload
-- multi-image upload
-- ZIP upload
-- manual crop
-- center crop and fit modes
-- quality and resize rules
-- optional watermark application
-- result preview and history
-- ZIP download for batch output
-
-### Operations and backend flow
-
-- Spring Boot backend
-- PostgreSQL persistence
-- Redis-backed async queue
-- Python image worker
-- optional SMTP-backed verification email sending
-- master account bootstrap through environment variables
-- local storage with R2/S3 migration path
-- health status with queue and storage snapshot
-
-## What Makes It More Than A Demo Tool
-
-- it reports `savedBytes` and `reductionRate`, not only success/failure
-- it supports batch workflows instead of single-file happy paths only
-- it separates API handling from image processing with a worker-ready structure
-- it includes rate limit, retry, and ZIP safety constraints
-- it presents a product-like landing and workspace split instead of a single utility screen
-
-## Current Guardrails
-
-- batch limit: `10 files`
-- ZIP file safeguards:
-  - `32 entries max`
-  - `20 MB max per entry`
-  - `50 MB max extracted total`
-- upload rate limit: `30 requests per minute`
-- queue publish retry: `3 attempts`
-
-## Current Technical Shape
-
-```text
-Frontend
-  React + Vite + Ant Design
-
-Backend
-  Spring Boot + JPA + PostgreSQL + JWT
-
-Async processing
-  Redis + Python worker
-
-Storage
-  Local storage today
-  R2/S3-compatible path prepared
-```
-
-## Known Gaps
-
-- full object storage migration is not finished
-- billing is not fully integrated
-- monitoring is still basic
-- a dedicated jobs screen and deeper filters would improve operations UX
-- frontend bundle size still has optimization room
-
-## Recommended Reading
-
-- [deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1)
-- [portfolio-case-study.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/portfolio-case-study.md:1)
+세부 실행 방법은 [deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1),  
+문제 해결 과정은 [portfolio-case-study.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/portfolio-case-study.md:1) 에 정리되어 있습니다.

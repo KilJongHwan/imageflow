@@ -3,6 +3,13 @@
 ImageFlow는 커머스 상품 이미지를 정해진 규격으로 빠르게 가공하기 위한 이미지 최적화 워크스페이스입니다.  
 여러 장의 이미지를 업로드하고, 크롭·리사이즈·압축·워터마크를 적용한 뒤 결과를 확인하고 내려받는 흐름을 한 곳에 모았습니다.
 
+## 대상 사용자
+
+- 마켓플레이스 셀러
+- 커머스 운영 담당자와 MD 팀
+- 반복적으로 상품 이미지를 다루는 소규모 브랜드 운영자
+- 디자인 툴보다 작업 속도와 일관성이 더 중요한 실무 사용자
+
 ## 어떤 문제를 해결하나
 
 커머스 환경에서는 다음 작업이 반복됩니다.
@@ -124,9 +131,32 @@ docker-compose.yml
 
 ## 로컬 실행 방법
 
-### 1. 백엔드 실행
+현재 `docker-compose.yml`은 전체 애플리케이션을 모두 올리는 구성이 아니라, 로컬 개발에 필요한 인프라와 worker만 올리는 구성을 사용합니다.
 
-```powershell
+- Docker로 실행: `postgres`, `redis`, `image-agent`
+- 호스트에서 실행: `backend`, `frontend`
+
+### 1. Docker 인프라 실행
+
+```bash
+docker compose up -d postgres redis image-agent
+```
+
+워커 코드를 수정했다면 재빌드가 필요합니다.
+
+```bash
+docker compose build image-agent
+docker compose up -d image-agent
+```
+중지 및 삭제입니다.
+
+``` bash
+docker-compose down -v --rmi all
+```
+
+### 2. 백엔드 실행
+
+```bash
 cd backend
 .\gradlew.bat bootRun
 ```
@@ -137,9 +167,9 @@ cd backend
 http://localhost:8080
 ```
 
-### 2. 프런트 실행
+### 3. 프런트 실행
 
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
@@ -153,19 +183,6 @@ http://localhost:5173
 
 프런트는 화면에서 백엔드 URL을 직접 입력하지 않습니다.  
 개발 환경에서는 기본적으로 `http://localhost:8080` 을 사용하고, 배포 환경에서는 `VITE_API_BASE_URL` 로 API 주소를 관리합니다.
-
-### 3. 비동기 워커 스택 실행
-
-```powershell
-docker compose up -d redis image-agent
-```
-
-워커 코드를 수정했다면 재빌드가 필요합니다.
-
-```powershell
-docker compose build image-agent
-docker compose up -d image-agent
-```
 
 ### 4. 선택 설정
 
@@ -204,16 +221,14 @@ docker compose up -d image-agent
 
 ## 참고 문서
 
-- [docs/README.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/README.md:1)
-  전체 문서 안내
 - [docs/product-overview.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/product-overview.md:1)
-  제품 개요와 현재 구현 범위
+  README 기준 제품 요약본
 - [docs/deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1)
   실행/배포 가이드
 - [docs/portfolio-case-study.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/portfolio-case-study.md:1)
-  포트폴리오용 케이스 스터디
+  포트폴리오 케이스 스터디
 - [PORTFOLIO.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/PORTFOLIO.md:1)
-  서류용 요약 문서
+  포트폴리오 요약 문서
 
 ## 현재 한계
 

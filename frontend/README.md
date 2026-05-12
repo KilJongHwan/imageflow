@@ -25,7 +25,7 @@ This is the React + Vite web app for ImageFlow.
 
 ## Run
 
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
@@ -51,7 +51,7 @@ VITE_API_BASE_URL
 
 ## Build
 
-```powershell
+```bash
 npm run build
 ```
 

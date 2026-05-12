@@ -6,9 +6,30 @@ This guide explains how to run ImageFlow locally and how to think about demo dep
 
 ## Local Development
 
+The current `docker-compose.yml` is not a full application stack.  
+It starts supporting infrastructure and the async worker only:
+
+- `postgres`
+- `redis`
+- `image-agent`
+
+The Spring backend and React frontend are still run from the host machine in local development.
+
+### Docker infrastructure
+
+```bash
+docker compose up -d postgres redis image-agent
+```
+
+Shutdown:
+
+```bash
+docker compose down
+```
+
 ### Backend
 
-```powershell
+```bash
 cd backend
 .\gradlew.bat bootRun
 ```
@@ -21,7 +42,7 @@ http://localhost:8080
 
 ### Frontend
 
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
@@ -33,15 +54,9 @@ Default frontend URL:
 http://localhost:5173
 ```
 
-### Async worker stack
+### Rebuild worker after code changes
 
-```powershell
-docker compose up -d redis image-agent
-```
-
-If worker code changed, rebuild it:
-
-```powershell
+```bash
 docker compose build image-agent
 docker compose up -d image-agent
 ```

@@ -32,7 +32,7 @@ This is the Python worker used for async image processing in ImageFlow.
 
 ## Run Directly
 
-```powershell
+```bash
 cd image-agent
 pip install -r requirements.txt
 python worker.py
@@ -40,13 +40,13 @@ python worker.py
 
 ## Run With Docker Compose
 
-```powershell
+```bash
 docker compose up -d redis image-agent
 ```
 
 If the worker code changed:
 
-```powershell
+```bash
 docker compose build image-agent
 docker compose up -d image-agent
 ```
