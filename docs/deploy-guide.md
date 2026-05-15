@@ -70,6 +70,18 @@ When the backend runs on the host and the worker runs in Docker:
 
 This is already reflected in `docker-compose.yml`.
 
+## API Docs
+
+- Swagger UI: `http://localhost:8080/swagger-ui`
+- OpenAPI JSON: `http://localhost:8080/api-docs`
+
+배포 환경에서도 같은 경로를 백엔드 주소 뒤에 붙여 접근할 수 있습니다.
+
+## Load Test
+
+동시성 업로드 테스트는 [load-tests/README.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/README.md:1) 와
+[load-tests/concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1) 기준으로 실행할 수 있습니다.
+
 ## Recommended Environment Values
 
 ### Backend

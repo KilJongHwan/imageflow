@@ -155,6 +155,10 @@ export function WorkspaceDashboard({ user, recentJobs, jobs, health }) {
                   <strong>{health.queueDepth ?? "-"}</strong>
                 </div>
                 <div>
+                  <span>Outbox Pending</span>
+                  <strong>{health.outboxPendingCount ?? "-"}</strong>
+                </div>
+                <div>
                   <span>Backlog Limit</span>
                   <strong>{health.maxQueueBacklogDepth || "-"}</strong>
                 </div>

@@ -34,6 +34,12 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui
+
 app:
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
   auth:
@@ -59,6 +65,9 @@ app:
     retry-attempts: ${APP_QUEUE_RETRY_ATTEMPTS:3}
     retry-delay-millis: ${APP_QUEUE_RETRY_DELAY_MILLIS:200}
     max-backlog-depth: ${APP_QUEUE_MAX_BACKLOG_DEPTH:100}
+    outbox:
+      poll-interval-millis: ${APP_QUEUE_OUTBOX_POLL_INTERVAL_MILLIS:1000}
+      batch-size: ${APP_QUEUE_OUTBOX_BATCH_SIZE:20}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   storage:

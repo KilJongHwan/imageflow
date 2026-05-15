@@ -1,341 +1,176 @@
 # Portfolio Case Study
 
-## Project Title
+## 프로젝트 개요
 
-대용량 이미지 업로드 시 트래픽 및 스토리지 비용 증가 문제 해결을 위한 이미지 최적화 시스템 개발
+ImageFlow는 커머스 이미지 운영 과정에서 반복되는 업로드, 크롭, 리사이즈, 압축, 다운로드 작업을 한 흐름으로 정리한 프로젝트입니다.  
+목표는 단순 편집 기능이 아니라, 대용량 이미지로 인해 생기는 비용과 운영 비효율을 줄이는 것이었습니다.
 
-## One-Line Summary
+## 문제 정의
 
-커머스 서비스에서 반복적으로 업로드되는 대용량 상품 이미지를 최적화해 트래픽과 스토리지 비용 부담을 줄이고, 셀러가 직접 자를 영역을 지정해 빠르게 배포용 이미지를 만들 수 있도록 한 SaaS형 이미지 운영 워크스페이스 프로젝트.
+커머스 환경에서는 다음 문제가 반복됩니다.
 
-## Background
+- 원본 이미지 용량이 커서 전송량과 저장소 비용이 커진다
+- 작업자마다 크롭 기준이 달라 결과물 규격이 흔들린다
+- 여러 장 이미지를 개별 툴에서 반복 편집해야 한다
+- 배치 처리와 다운로드 흐름이 약하면 운영 시간이 길어진다
 
-커머스 플랫폼과 셀러 도구 환경에서는 상품 이미지가 많이 쌓이고 자주 다시 업로드됩니다.
+이 프로젝트에서는 이 문제를 `서비스형 워크플로우`로 풀고 싶었습니다.
 
-이때 발생하는 문제는 단순히 "이미지가 크다"가 아닙니다.
+## 구현 목표
 
-- 네트워크 전송량이 커진다
-- 저장소 비용이 누적된다
-- 같은 이미지를 사람이 반복해서 자르고 줄이고 저장한다
-- 운영자와 셀러의 작업 속도가 느려진다
+- 로그인한 사용자가 이미지 작업을 수행할 수 있는 구조 만들기
+- 단일 이미지뿐 아니라 다중 이미지와 ZIP 업로드까지 지원하기
+- 크롭, 리사이즈, 품질 조절, 워터마크를 한 번에 처리하기
+- 결과를 단순 미리보기로 끝내지 않고 ZIP 다운로드까지 연결하기
+- API 서버와 이미지 처리 worker를 분리해 확장 가능한 구조 만들기
 
-즉, 비용 문제와 운영 비효율이 함께 발생합니다.
+## 구현한 기능
 
-## Problem Definition
+- JWT 기반 로그인/회원가입
+- 랜딩 페이지, Pricing, Get Started 흐름
+- 로그인 후 대시보드형 워크스페이스
+- 단일/다중 이미지 업로드
+- ZIP 업로드
+- 수동 크롭, center-crop, fit
+- 리사이즈 및 품질 조절
+- 선택적 워터마크
+- 최근 작업 이력 및 결과 검수
+- 배치 ZIP 다운로드
+- Redis + Python worker 기반 비동기 처리
 
-`대용량 이미지 업로드 환경에서 트래픽과 스토리지 비용을 줄이면서도, 셀러가 쉽게 사용할 수 있는 최적화 워크플로우를 제공할 수 있는가?`
+## 운영 근거
 
-## Numeric Summary
+- 서비스 URL: `https://imageflow-rose.vercel.app`
+- API 문서: Swagger UI(`/swagger-ui`) 및 [api-reference.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/api-reference.md:1)
+- Docker 실행: `docker compose` 기반
+- 부하테스트: [concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1)
 
-This project is easiest to evaluate when the control points are stated numerically:
+## 수치로 정리한 기준
 
-- `savedBytes` and `reductionRate` are exposed per job
-- product-facing value example: `up to 72%` size reduction
-- batch upload cap: `10 files`
+- batch upload cap: `10`
 - ZIP entry cap: `32`
 - ZIP entry size cap: `50MB`
 - total extracted ZIP size cap: `200MB`
-- upload API limit: `30 rpm`
-- queue publish retry: `3 attempts`, `200ms` interval
+- upload rate limit: `30 rpm`
+- queue publish retry: `3 attempts`, `200ms`
 - queue backlog threshold: `100`
 - worker concurrency: `3`
-- free plan credits: `20`
 
-## Goals
+이 수치들은 문서용 장식이 아니라, 실제로 어디까지 입력을 허용하고 어디서부터 보호 장치를 거는지 정리한 기준입니다.
 
-### Functional Goals
+## 설계에서 신경 쓴 부분
 
-- 로그인한 사용자만 이미지 작업 가능
-- 로그인 전 SaaS형 랜딩과 Pricing 구조 제공
-- 이미지 업로드 후 직접 크롭 영역 지정 가능
-- 리사이즈, 압축, 선택적 워터마크 적용 가능
-- 여러 장 이미지를 한 번에 처리 가능
-- 결과 이미지를 ZIP 형태로 다운로드 가능
-- 로그인 후 대시보드형 워크스페이스 제공
+### 1. 결과를 숫자로 보여주는 구조
 
-### System Goals
+최적화 결과에 `savedBytes`, `reductionRate`를 포함해 원본 대비 얼마나 줄었는지 바로 확인할 수 있게 했습니다.  
+이 덕분에 이 프로젝트를 “이미지 편집 기능”이 아니라 비용 절감과 연결해서 설명할 수 있었습니다.
 
-- 단일 요청 기반 처리와 비동기 확장 구조를 모두 고려
-- queue retry, rate limit, health-based monitoring 항목을 운영 구조에 포함
-- 대용량 업로드 증가 시 배치 제한과 처리 분리가 가능하도록 설계
-- 저장소 및 전송 비용을 줄이는 방향으로 최적화 파이프라인 구성
-
-## Architecture Summary
-
-### Frontend
-
-- React + Vite
-- JWT 로그인
-- SaaS 랜딩 페이지, Get Started, Pricing
-- 업로드 UI
-- 드래그 기반 크롭 영역 선택
-- 단일/배치 업로드 요청
-- 결과 미리보기 및 ZIP 다운로드
-- 대시보드형 workspace home
-
-### Backend
-
-- Spring Boot
-- JWT 인증 기반 API 보호
-- 이미지 작업 생성 및 상태 관리
-- 단일/배치 업로드 처리
-- ZIP 다운로드 생성
-- 로컬 저장소 기반 처리 후 R2/S3 확장 가능 구조 유지
-- health endpoint에서 processing mode, queue depth, storage provider 등 노출
-
-### Worker
-
-- Python image worker
-- Redis queue 기반 비동기 확장 가능
-- 크롭, 리사이즈, 품질 조절, 워터마크 처리
-
-## Key Implementation Points
-
-### 1. 비용 문제를 사용자 기능으로 연결
-
-단순 압축 기능이 아니라, 실제 업로드 흐름 안에서 크롭과 리사이즈를 먼저 수행하도록 구성해 불필요한 이미지 크기 자체를 줄이는 방향으로 접근했습니다.
-
-### 2. 운영 반복 작업 감소
-
-셀러가 이미지마다 외부 툴에서 자르고 저장하는 대신, 서비스 안에서 바로 크롭하고 최적화된 결과를 받을 수 있도록 구성했습니다.
-
-### 3. 배치 처리 기반 확장
-
-여러 장 업로드와 ZIP 다운로드를 추가해 단건 테스트용 도구가 아니라 실제 반복 업무에 가까운 흐름으로 확장했습니다.
-
-### 4. SaaS 제품처럼 보이도록 정보 구조 재설계
-
-처음엔 기능 카드가 중심인 툴 화면에 가까웠지만, 실제 서비스처럼 보이려면 랜딩과 앱이 분리돼야 한다고 판단했습니다.
-그래서:
-
-- 로그인 전 SaaS형 랜딩
-- Pricing 3단 구조
-- Get Started CTA
-- 로그인 후 대시보드형 워크스페이스
-
-형태로 구조를 바꿨습니다.
-
-### 5. 서비스 확장 가능성 확보
-
-Redis queue + Python worker 구조를 유지해 향후 트래픽 증가 시 비동기 처리로 확장할 수 있도록 했습니다.
-
-## Optimization and Hardening
-
-### What was optimized
-
-- 결과 응답에 `savedBytes`, `reductionRate`를 포함해 최적화 효과를 정량적으로 확인할 수 있게 했습니다.
-- 리사이즈, 품질 조절, 선택적 워터마크를 워커 파이프라인으로 분리했습니다.
-- 대량 업로드 시 서버가 버틸 수 있도록 배치와 ZIP 안전장치를 추가했습니다.
-
-코드 근거:
+코드:
 
 - [ImageJobResponse.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/dto/ImageJobResponse.java:46)
-- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:52)
 
-### How far it was hardened
+### 2. ZIP 업로드를 통제된 입력으로 다룬 점
 
-- 배치 업로드 최대 `10개`
-- ZIP 최대 `32개 엔트리`
-- ZIP 엔트리당 최대 `50MB`
-- ZIP 전체 압축 해제 기준 최대 `200MB`
-- 업로드 API rate limit 기본값 `30 rpm`
-- Redis queue publish retry `3회`, retry 간격 `200ms`
-- queue backlog 상한 `100`
+ZIP 업로드는 편하지만, 엔트리 수나 압축 해제 용량을 제한하지 않으면 서버에 부담이 큽니다.  
+그래서 엔트리 수, 엔트리당 용량, 전체 압축 해제 용량을 나눠 제한했고, 사용자는 에러 원인을 바로 이해할 수 있도록 프런트에서 문구를 다시 변환했습니다.
 
-코드 근거:
+코드:
 
 - [application.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/resources/application.yaml:43)
-- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:63)
-- [ImageJobQueuePublisher.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/queue/ImageJobQueuePublisher.java:18)
+- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:598)
+- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:35)
 
-### What effort went into making it production-like
+### 3. ZIP 다운로드를 스트리밍으로 전환한 점
 
-- ZIP 다운로드는 파일 전체를 메모리에 담지 않고 `StreamingResponseBody + ZipOutputStream`으로 스트리밍 처리하게 바꿨습니다.
-- queue backlog가 상한을 넘으면 새 업로드를 제한하는 backpressure를 추가했습니다.
-- health endpoint에 `processingMode`, `queueDepth`, `maxQueueBacklogDepth`, `queueWritable`, `storageProvider`, `uploadRequestsPerMinute`를 포함해 운영 상태를 바로 볼 수 있게 했습니다.
-- 로그인 전에는 SaaS 랜딩, 로그인 후에는 대시보드형 워크스페이스로 분리해 제품 구조와 운영 구조를 같이 설명할 수 있게 만들었습니다.
+배치 결과를 한 번에 내려받을 때, 파일 전체를 메모리에 올리는 방식은 위험하다고 봤습니다.  
+그래서 `StreamingResponseBody + ZipOutputStream`으로 바꿔 스트리밍 방식으로 응답하도록 구성했습니다.
 
-코드 근거:
-
-- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:419)
-- [HealthController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/HealthController.java:43)
-- [QueueBackpressureService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/common/ops/QueueBackpressureService.java:1)
-- [LandingPage.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/LandingPage.jsx:1)
-- [WorkspaceDashboard.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/WorkspaceDashboard.jsx:42)
-
-## Technical Challenges And Resolution
-
-### 1. Large ZIP download could become a memory-heavy response
-
-Challenge:
-
-- Bundling multiple optimized files into one ZIP is convenient, but a naive in-memory approach grows risky as batch size increases.
-
-Resolution:
-
-- Switched to `StreamingResponseBody + ZipOutputStream` so files are streamed into the response instead of being fully assembled in memory first.
-
-Why this matters:
-
-- It directly supports the project’s “batch image ops” positioning and shows awareness of server-side memory pressure.
-
-Code:
+코드:
 
 - [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:389)
-- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:418)
 
-### 2. ZIP upload needed protection against excessive extraction cost
+## 실제로 부딪힌 기술 문제
 
-Challenge:
+### 1. ZIP 배치 업로드가 체감상 멈춘 것처럼 보인 문제
 
-- ZIP upload improves usability, but compressed archives can hide large extraction cost or too many entries.
+처음에는 ZIP 안의 여러 이미지가 모두 비동기 처리되더라도, worker가 순차적으로 하나씩만 소비하고 있어서 첫 작업만 먼저 끝나고 나머지는 오래 `QUEUED` 상태로 남았습니다.
 
-Resolution:
+이 문제를 줄이기 위해:
 
-- Added explicit constraints for:
-  - `32 entries max`
-  - `50MB max per entry`
-  - `200MB max total extracted size`
+- worker에 `WORKER_CONCURRENCY`를 넣어 기본 3개 작업까지 동시에 처리
+- 프런트에서 배치 상태를 계속 따라가도록 polling 보강
 
-- In the local demo environment, upload failures are also converted into user-facing guidance such as “ZIP 안의 개별 이미지가 너무 큽니다” instead of exposing raw backend exception text.
+구조로 수정했습니다.
 
-Why this matters:
-
-- It turns a convenience feature into a controlled production-oriented input path.
-
-Code:
-
-- [application.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/resources/application.yaml:67)
-- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:611)
-- [ImageJobService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/domain/image/ImageJobService.java:632)
-
-### 3. Host backend and Docker worker could disagree on result file location
-
-Challenge:
-
-- In mixed local runtime, the Spring backend on the host and the Python worker in Docker could report `SUCCEEDED` while the actual output file was not visible to the backend.
-
-Resolution:
-
-- Rewrote `localhost` URLs inside the worker to use `BACKEND_BASE_URL`
-- Introduced shared storage handling through Docker volume mapping and worker-side `STORAGE_ROOT`
-
-Why this matters:
-
-- This is a concrete async/runtime debugging case, not just a UI or CRUD problem.
-
-Code:
-
-- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:380)
-- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:454)
-- [docker-compose.yml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docker-compose.yml:1)
-
-### 4. Upload UI and app state could drift apart during batch workflows
-
-Challenge:
-
-- As drag-and-drop, batch upload, and history update logic grew, file list state and visible UI could become inconsistent.
-
-Resolution:
-
-- Moved file handling into a controlled app-level state flow and added cleanup for polling and preview URLs during logout and resets.
-
-Why this matters:
-
-- It shows frontend state-management problem solving beyond static UI composition.
-
-Code:
-
-- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:94)
-- [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:263)
-- [UploadQueue.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/components/UploadQueue.jsx:1)
-
-### 5. Async queue needed backpressure, not only retry
-
-Challenge:
-
-- Even with async workers, the system can still degrade if uploads arrive faster than workers can process them.
-
-Resolution:
-
-- Added queue backlog control so new uploads are rejected once queue depth reaches the configured threshold.
-- Exposed `queueDepth`, `maxQueueBacklogDepth`, and `queueWritable` through health and dashboard views.
-
-Why this matters:
-
-- It shows awareness that async architecture alone does not solve overload; input must also be controlled.
-
-Code:
-
-- [QueueBackpressureService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/common/ops/QueueBackpressureService.java:1)
-- [ImageJobController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/ImageJobController.java:1)
-- [HealthController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/HealthController.java:1)
-
-### 6. Async upload existed, but batch previews still felt stalled because the worker was effectively sequential
-
-Challenge:
-
-- ZIP uploads created multiple jobs correctly, but with a single worker loop, only the first preview finished quickly while the rest stayed queued for too long.
-
-Resolution:
-
-- Added `WORKER_CONCURRENCY` to the Python worker so multiple image jobs can be processed at once.
-- Added batch polling in the frontend so users can see progress like `3개 중 1개 완료, 2개 처리 중` instead of assuming the queue is stuck.
-
-Why this matters:
-
-- It turns “async on paper” into something that also feels responsive in practice during ZIP and multi-file workflows.
-
-Code:
+코드:
 
 - [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:1)
 - [App.jsx](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/frontend/src/App.jsx:558)
 
-### 7. Parallel worker processing exposed a transaction timing race on result callbacks
+### 2. worker 병렬 처리 이후 result callback 404가 발생한 문제
 
-Challenge:
+worker를 병렬 처리로 바꾼 뒤 일부 job이 `PATCH /api/image-jobs/{id}/result`에서 `404`로 실패했습니다.
 
-- After increasing worker concurrency, some jobs failed with `404` on `PATCH /api/image-jobs/{id}/result`.
+원인은 저장 트랜잭션이 커밋되기 전에 queue publish가 먼저 일어나고 있었기 때문이었습니다. worker가 빨라지자 이 경쟁 상태가 실제 문제로 드러난 것입니다.
 
-Resolution:
+해결은 queue publish 시점을 `afterCommit` 이후로 미루는 것이었습니다.
 
-- Moved Redis queue publish to run only after the Spring transaction commits by registering `afterCommit` synchronization.
-
-Why this matters:
-
-- This is a concrete race-condition fix: faster consumers made it possible for callbacks to arrive before the database row became visible.
-- The solution improves lifecycle correctness, not just performance.
-
-Code:
+코드:
 
 - [ImageJobQueuePublisher.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/queue/ImageJobQueuePublisher.java:1)
 
-## Expected Impact
+이후에는 이 구조를 한 단계 더 보강해, 메시지를 바로 Redis로 발행하지 않고 DB Outbox 테이블에 먼저 적재한 뒤 relay가 전송하도록 변경했습니다.  
+이렇게 하면 DB 커밋 이후 프로세스가 중단되더라도 메시지를 다시 확인해 재전송할 수 있습니다.
 
-- 이미지 평균 용량 감소를 통한 전송량 절감
-- 저장소 사용량 절감
-- 셀러/운영자의 반복 이미지 편집 시간 감소
-- 상품 이미지 준비 시간을 단축해 등록 효율 향상
+### 3. 호스트 백엔드와 Docker worker의 저장 경로가 달랐던 문제
 
-## Current Limitations
+백엔드는 호스트에서 돌고 worker는 Docker에서 돌 때, 성공으로 처리돼도 결과 이미지가 실제로는 백엔드에서 보이지 않는 문제가 있었습니다.
 
-- 실서비스 수준의 R2/S3 저장소 전환은 아직 진행 중
-- rate limit과 queue retry는 기본 구조까지 반영했지만 observability는 더 확장 필요
-- 별도 billing 화면과 실제 결제 연동은 아직 없음
-- 작업 이력 전용 Jobs 화면과 필터링은 더 다듬을 여지가 있음
+이 문제를 해결하기 위해:
 
-## Next Steps
+- worker에서 `localhost` URL을 `BACKEND_BASE_URL` 기준으로 재작성
+- shared storage volume과 `STORAGE_ROOT` 추가
 
-1. Cloudflare R2 / S3 기반 저장 구조 완성
-2. Jobs 전용 화면과 상태 필터링 추가
-3. observability 확장
-4. billing placeholder 또는 실제 결제 연동 추가
-5. 프런트 번들 분리 및 성능 최적화
+를 적용했습니다.
 
-## Resume / Portfolio Bullet Examples
+코드:
 
-- 대용량 상품 이미지 업로드로 인한 트래픽 및 스토리지 비용 증가 문제를 해결하기 위해 Spring Boot, React, Python 기반 이미지 최적화 시스템 설계 및 구현
-- JWT 인증, 크롭 UI, 배치 업로드, 선택적 워터마크, ZIP 다운로드 기능을 포함한 커머스 셀러용 이미지 처리 워크플로우 구축
-- SaaS형 랜딩/플랜/대시보드 구조와 Redis queue 기반 비동기 확장 구조를 함께 설계해 제품 경험과 운영 구조를 모두 설명할 수 있도록 구성
-- 배치 10개 제한, ZIP 32엔트리/50MB/200MB 제한, 30rpm rate limit, 3회 retry, worker concurrency 3을 적용해 대용량 처리 리스크를 줄이는 방향으로 하드닝
-- queue backlog 상한을 `100`으로 두고 backpressure를 추가해, worker 처리량을 초과하는 입력이 들어올 때도 무제한 적재를 피하도록 설계
+- [worker.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/worker.py:380)
+- [docker-compose.yml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docker-compose.yml:1)
+
+### 4. 비동기 구조만으로는 과부하 문제가 해결되지 않는 점
+
+큐와 worker를 분리해도, 입력이 처리 속도보다 빠르면 backlog가 쌓입니다.  
+그래서 queue depth 기준으로 새 업로드를 막는 backpressure를 추가했고, health와 대시보드에서 현재 queue 상태를 볼 수 있게 했습니다.
+
+코드:
+
+- [QueueBackpressureService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/common/ops/QueueBackpressureService.java:1)
+- [HealthController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/HealthController.java:1)
+
+## 결과적으로 정리된 구조
+
+- 프런트는 랜딩과 앱을 분리해 제품형 흐름을 갖추도록 정리
+- 백엔드는 인증, 업로드, 작업 상태, ZIP 다운로드를 담당
+- worker는 실제 이미지 처리 전용으로 분리
+- 보호 장치는 업로드 제한, ZIP 제한, rate limit, queue retry, backlog control로 구성
+
+## 운영 및 검증 항목
+
+- 실제 배포 URL: 별도 첨부 가능
+- API 문서: 별도 첨부 가능
+- Docker 실행: 가능
+- 부하테스트 결과: 별도 첨부 가능
+- 장애 대응 구조: 반영
+
+저장소 기준으로 확인 가능한 내용은 다음과 같습니다.
+
+- Docker는 `docker-compose.yml`을 통해 `postgres`, `redis`, `image-agent`를 실행할 수 있습니다.
+- 장애 대응 구조는 rate limit, queue retry, backlog control, health endpoint, worker concurrency, `afterCommit` queue publish를 중심으로 구성되어 있습니다.
+
+## 주요 성과
+
+- 업로드와 파일 처리 중심의 제품 흐름을 설계하고 구현함
+- 대용량 입력에 대한 제한과 보호 장치를 정리함
+- Redis 기반 비동기 worker 구조와 큐 운영 흐름을 직접 구성함
+- worker 병렬 처리 도입 과정에서 생긴 race condition을 디버깅하고 수정함

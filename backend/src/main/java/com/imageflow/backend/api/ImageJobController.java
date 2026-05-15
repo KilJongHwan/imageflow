@@ -30,8 +30,12 @@ import com.imageflow.backend.common.ops.RateLimitService;
 import com.imageflow.backend.domain.auth.AuthService;
 import com.imageflow.backend.domain.user.User;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/image-jobs")
+@Tag(name = "Image Jobs", description = "Upload, queue, poll, and download image optimization jobs")
 public class ImageJobController {
 
     private final ImageJobService imageJobService;
@@ -56,6 +60,7 @@ public class ImageJobController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create prompt-based image job", description = "Creates a queue-backed image generation or optimization job from JSON input.")
     public ImageJobResponse create(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody CreateImageJobRequest request
@@ -68,6 +73,7 @@ public class ImageJobController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Upload a single image", description = "Uploads one image and creates a queue-backed optimization job.")
     public ImageJobResponse upload(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestParam("file") MultipartFile file,
@@ -117,6 +123,7 @@ public class ImageJobController {
 
     @PostMapping(value = "/uploads", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Upload multiple images or ZIP", description = "Uploads multiple image files or one ZIP archive and creates a batch of optimization jobs.")
     public ImageJobBatchResponse uploadMany(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestParam("files") List<MultipartFile> files,
@@ -165,6 +172,7 @@ public class ImageJobController {
     }
 
     @GetMapping("/{imageJobId:[0-9a-fA-F\\-]{36}}")
+    @Operation(summary = "Get image job", description = "Returns the current state and output metadata of a single job.")
     public ImageJobResponse get(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @PathVariable UUID imageJobId
@@ -173,11 +181,13 @@ public class ImageJobController {
     }
 
     @GetMapping
+    @Operation(summary = "List recent jobs", description = "Returns the recent jobs of the authenticated user.")
     public java.util.List<ImageJobResponse> listRecent(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         return imageJobService.listRecent(currentUser(authorizationHeader));
     }
 
     @GetMapping("/download")
+    @Operation(summary = "Download batch ZIP", description = "Downloads multiple completed job outputs as a streamed ZIP archive.")
     public ResponseEntity<StreamingResponseBody> download(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestParam("jobIds") List<UUID> jobIds
@@ -186,6 +196,7 @@ public class ImageJobController {
     }
 
     @PatchMapping("/{imageJobId:[0-9a-fA-F\\-]{36}}/result")
+    @Operation(summary = "Update image job result", description = "Worker callback endpoint that updates PROCESSING, SUCCEEDED, or FAILED status.")
     public ImageJobResponse updateResult(
             @PathVariable UUID imageJobId,
             @RequestBody ImageJobResultUpdateRequest request

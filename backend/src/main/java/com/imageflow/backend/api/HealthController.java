@@ -11,9 +11,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.imageflow.backend.common.ops.QueueBackpressureService;
+import com.imageflow.backend.queue.ImageJobOutboxRelay;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api")
+@Tag(name = "Operations", description = "Operational health and runtime status endpoints")
 public class HealthController {
 
     private final String processingMode;
@@ -24,6 +29,7 @@ public class HealthController {
     private final StringRedisTemplate stringRedisTemplate;
     private final String queueKey;
     private final QueueBackpressureService queueBackpressureService;
+    private final ImageJobOutboxRelay imageJobOutboxRelay;
 
     public HealthController(
             @Value("${app.processing.mode:worker}") String processingMode,
@@ -33,7 +39,8 @@ public class HealthController {
             @Value("${app.rate-limit.upload-requests-per-minute:30}") int uploadRequestsPerMinute,
             @Value("${app.queue.image-jobs-key:imageflow:image-jobs}") String queueKey,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            QueueBackpressureService queueBackpressureService
+            QueueBackpressureService queueBackpressureService,
+            ImageJobOutboxRelay imageJobOutboxRelay
     ) {
         this.processingMode = processingMode;
         this.queueEnabled = queueEnabled;
@@ -43,9 +50,11 @@ public class HealthController {
         this.queueKey = queueKey;
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.queueBackpressureService = queueBackpressureService;
+        this.imageJobOutboxRelay = imageJobOutboxRelay;
     }
 
     @GetMapping("/health")
+    @Operation(summary = "Health snapshot", description = "Returns backend runtime state including queue, outbox, and storage information.")
     public Map<String, Object> health() {
         return Map.ofEntries(
                 Map.entry("status", "ok"),
@@ -57,6 +66,7 @@ public class HealthController {
                 Map.entry("storageProvider", storageProvider),
                 Map.entry("uploadRequestsPerMinute", uploadRequestsPerMinute),
                 Map.entry("queueDepth", resolveQueueDepth()),
+                Map.entry("outboxPendingCount", imageJobOutboxRelay.pendingCount()),
                 Map.entry("maxQueueBacklogDepth", queueBackpressureService.maxBacklogDepth()),
                 Map.entry("queueWritable", isQueueWritable())
         );
