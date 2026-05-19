@@ -93,6 +93,11 @@ This is already reflected in `docker-compose.yml`.
 - `APP_STORAGE_ROOT`
 - `APP_RATE_LIMIT_UPLOAD_REQUESTS_PER_MINUTE`
 - `JWT_SECRET`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USERNAME`
+- `DB_PASSWORD`
 
 ### Worker
 

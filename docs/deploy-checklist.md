@@ -36,12 +36,16 @@
 
 - `APP_PUBLIC_BASE_URL`
   - 예: `https://imageflow-backend.onrender.com`
-- `APP_AUTH_JWT_SECRET`
+- `JWT_SECRET`
   - 최소 32자 이상의 실제 비밀값으로 교체 권장
 
 자동 연결되는 값:
 
-- `SPRING_DATASOURCE_URL`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USERNAME`
+- `DB_PASSWORD`
 - `SPRING_DATASOURCE_USERNAME`
 - `SPRING_DATASOURCE_PASSWORD`
 

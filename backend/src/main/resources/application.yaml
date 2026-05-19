@@ -4,7 +4,7 @@ spring:
       max-file-size: ${MULTIPART_MAX_FILE_SIZE:500MB}
       max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:500MB}
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/imageflow}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:imageflow}}
     username: ${DB_USERNAME:imageflow}
     password: ${DB_PASSWORD:imageflow1234}
     driver-class-name: org.postgresql.Driver

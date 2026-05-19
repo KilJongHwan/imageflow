@@ -9,21 +9,29 @@ services:
     envVars:
       - key: JAVA_VERSION
         value: "17"
-      - key: SPRING_DATASOURCE_URL
+      - key: DB_HOST
         fromDatabase:
           name: imageflow-db
-          property: connectionString
-      - key: SPRING_DATASOURCE_USERNAME
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: imageflow-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: imageflow-db
+          property: database
+      - key: DB_USERNAME
         fromDatabase:
           name: imageflow-db
           property: user
-      - key: SPRING_DATASOURCE_PASSWORD
+      - key: DB_PASSWORD
         fromDatabase:
           name: imageflow-db
           property: password
       - key: APP_PUBLIC_BASE_URL
         sync: false
-      - key: APP_AUTH_JWT_SECRET
+      - key: JWT_SECRET
         sync: false
       - key: APP_STORAGE_ROOT
         value: /tmp/imageflow-storage

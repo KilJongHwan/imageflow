@@ -38,8 +38,18 @@ After service creation, set:
 
 - `APP_PUBLIC_BASE_URL`
   - example: `https://imageflow-backend.onrender.com`
-- `APP_AUTH_JWT_SECRET`
+- `JWT_SECRET`
   - use a real secret value with at least 32 characters
+
+### Database variables
+
+`render.yaml` now wires the database using host/port/name values instead of a raw connection string.
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USERNAME`
+- `DB_PASSWORD`
 
 ## 3. Deploy Frontend On Vercel
 
