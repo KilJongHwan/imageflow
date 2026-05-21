@@ -34,6 +34,8 @@
   - 완료된 작업 결과를 ZIP으로 내려받습니다.
 - `PATCH /api/image-jobs/{imageJobId}/result`
   - worker가 작업 상태를 업데이트하는 콜백 엔드포인트입니다.
+- `PATCH /api/image-jobs/{imageJobId}/result-file`
+  - worker가 최적화 결과 파일을 backend로 다시 업로드하는 콜백 엔드포인트입니다.
 
 ### Operations
 
@@ -43,4 +45,4 @@
 ## 인증 방식
 
 - 대부분의 사용자 엔드포인트는 `Authorization: Bearer <token>` 헤더를 사용합니다.
-- worker callback인 `PATCH /api/image-jobs/{imageJobId}/result`는 현재 내부 처리 용도로 사용됩니다.
+- worker callback인 `PATCH /api/image-jobs/{imageJobId}/result`, `PATCH /api/image-jobs/{imageJobId}/result-file`는 현재 내부 처리 용도로 사용됩니다.

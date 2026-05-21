@@ -82,6 +82,25 @@ public class StorageService {
         return getOutputRoot().resolve(filename).normalize();
     }
 
+    public StoredFile storeOutput(String filename, byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            throw new BadRequestException("optimized file is required");
+        }
+
+        if (!isSupportedImageFilename(filename)) {
+            throw new BadRequestException("only jpg, jpeg, png and webp images are allowed");
+        }
+        validateImageBytes(filename, bytes);
+
+        Path targetPath = createOutputPath(filename);
+        try (InputStream inputStream = new ByteArrayInputStream(bytes)) {
+            Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            return new StoredFile(filename, targetPath);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to store optimized file", exception);
+        }
+    }
+
     public Path resolveInputFile(String filename) {
         return getInputRoot().resolve(filename).normalize();
     }

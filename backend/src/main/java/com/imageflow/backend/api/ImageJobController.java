@@ -23,6 +23,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import com.imageflow.backend.domain.image.ImageJobService;
 import com.imageflow.backend.domain.image.dto.CreateImageJobRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobBatchResponse;
+import com.imageflow.backend.domain.image.dto.ImageJobResultFileUploadRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResultUpdateRequest;
 import com.imageflow.backend.common.ops.QueueBackpressureService;
@@ -202,6 +203,28 @@ public class ImageJobController {
             @RequestBody ImageJobResultUpdateRequest request
     ) {
         return imageJobService.updateResult(imageJobId, request);
+    }
+
+    @PatchMapping(value = "/{imageJobId:[0-9a-fA-F\\-]{36}}/result-file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload optimized result file", description = "Worker callback endpoint that uploads the optimized file back to the backend when storage is not shared.")
+    public ImageJobResponse uploadResultFile(
+            @PathVariable UUID imageJobId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String outputObjectKey,
+            @RequestParam(required = false) String resultImageUrl,
+            @RequestParam(required = false) Long sourceFileSizeBytes,
+            @RequestParam(required = false) Long resultFileSizeBytes
+    ) {
+        return imageJobService.uploadResultFile(
+                imageJobId,
+                new ImageJobResultFileUploadRequest(
+                        file,
+                        outputObjectKey,
+                        resultImageUrl,
+                        sourceFileSizeBytes,
+                        resultFileSizeBytes
+                )
+        );
     }
 
     private User currentUser(String authorizationHeader) {

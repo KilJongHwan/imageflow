@@ -148,6 +148,20 @@ worker를 병렬 처리로 바꾼 뒤 일부 job이 `PATCH /api/image-jobs/{id}/
 - [QueueBackpressureService.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/common/ops/QueueBackpressureService.java:1)
 - [HealthController.java](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/backend/src/main/java/com/imageflow/backend/api/HealthController.java:1)
 
+### 5. 분리 배포 환경에서 worker 결과 파일이 백엔드에 남지 않는 문제
+
+로컬에서는 shared volume으로 해결할 수 있었지만, Render처럼 backend와 worker를 다른 서비스로 분리하면 local output 파일을 직접 공유할 수 없습니다.
+
+이 문제를 해결하기 위해:
+
+- worker가 최적화 결과 파일을 `PATCH /api/image-jobs/{id}/result-file` endpoint로 다시 업로드
+- backend가 이 파일을 자신의 output 경로에 저장
+- async Render 예시에서는 `REDIS_URL`, `BACKEND_HOSTPORT`, `WORKER_RESULT_CALLBACK_ENABLED` 조합을 사용
+
+구조로 정리했습니다.
+
+이 변경으로 backend와 worker가 파일 시스템을 공유하지 않아도 비동기 결과 다운로드 흐름을 유지할 수 있게 됐습니다.
+
 ## 결과적으로 정리된 구조
 
 - 프런트는 랜딩과 앱을 분리해 제품형 흐름을 갖추도록 정리
@@ -157,16 +171,18 @@ worker를 병렬 처리로 바꾼 뒤 일부 job이 `PATCH /api/image-jobs/{id}/
 
 ## 운영 및 검증 항목
 
-- 실제 배포 URL: 별도 첨부 가능
-- API 문서: 별도 첨부 가능
+- 실제 배포 URL: `https://imageflow-rose.vercel.app`
+- API 문서: Swagger UI(`/swagger-ui`), OpenAPI JSON(`/api-docs`)
 - Docker 실행: 가능
-- 부하테스트 결과: 별도 첨부 가능
+- 부하테스트 스크립트: [concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1)
 - 장애 대응 구조: 반영
+- Render async 예시: [render.async.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/render.async.yaml:1)
 
 저장소 기준으로 확인 가능한 내용은 다음과 같습니다.
 
 - Docker는 `docker-compose.yml`을 통해 `postgres`, `redis`, `image-agent`를 실행할 수 있습니다.
-- 장애 대응 구조는 rate limit, queue retry, backlog control, health endpoint, worker concurrency, `afterCommit` queue publish를 중심으로 구성되어 있습니다.
+- 장애 대응 구조는 rate limit, queue retry, backlog control, health endpoint, worker concurrency, DB Outbox relay를 중심으로 구성되어 있습니다.
+- 분리 배포 환경에서는 worker result-file callback으로 shared storage 없이 결과 파일을 백엔드에 반영할 수 있습니다.
 
 ## 주요 성과
 

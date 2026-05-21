@@ -29,6 +29,11 @@ services:
         fromDatabase:
           name: imageflow-db
           property: password
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: imageflow-queue
+          property: connectionString
       - key: APP_PUBLIC_BASE_URL
         sync: false
       - key: JWT_SECRET
@@ -36,11 +41,40 @@ services:
       - key: APP_STORAGE_ROOT
         value: /tmp/imageflow-storage
       - key: APP_PROCESSING_MODE
-        value: sync
+        value: worker
       - key: APP_QUEUE_ENABLED
-        value: "false"
-      - key: SPRING_AUTOCONFIGURE_EXCLUDE
-        value: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+        value: "true"
+
+  - type: worker
+    name: imageflow-worker
+    runtime: docker
+    rootDir: .
+    plan: starter
+    dockerfilePath: image-agent/Dockerfile
+    dockerContext: image-agent
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: imageflow-queue
+          property: connectionString
+      - key: IMAGE_JOB_QUEUE_KEY
+        value: imageflow:image-jobs
+      - key: BACKEND_HOSTPORT
+        fromService:
+          type: web
+          name: imageflow-backend
+          property: hostport
+      - key: WORKER_CONCURRENCY
+        value: "3"
+      - key: WORKER_RESULT_CALLBACK_ENABLED
+        value: "true"
+
+  - type: keyvalue
+    name: imageflow-queue
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
 
 databases:
   - name: imageflow-db

@@ -29,6 +29,7 @@ import com.imageflow.backend.common.exception.BadRequestException;
 import com.imageflow.backend.common.exception.NotFoundException;
 import com.imageflow.backend.domain.image.dto.CreateImageJobRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobBatchResponse;
+import com.imageflow.backend.domain.image.dto.ImageJobResultFileUploadRequest;
 import com.imageflow.backend.domain.image.dto.ImageJobResponse;
 import com.imageflow.backend.domain.image.dto.ImageJobResultUpdateRequest;
 import com.imageflow.backend.domain.usage.UsageRecord;
@@ -385,6 +386,39 @@ public class ImageJobService {
         return ImageJobResponse.from(imageJob);
     }
 
+    public ImageJobResponse uploadResultFile(UUID imageJobId, ImageJobResultFileUploadRequest request) {
+        ImageJob imageJob = imageJobRepository.findById(imageJobId)
+                .orElseThrow(() -> new NotFoundException("image job not found: " + imageJobId));
+
+        if (request.file() == null || request.file().isEmpty()) {
+            throw new BadRequestException("optimized file is required");
+        }
+
+        String outputObjectKey = request.outputObjectKey() == null || request.outputObjectKey().isBlank()
+                ? defaultOutputObjectKey(imageJob)
+                : request.outputObjectKey().trim();
+        String outputFilename = filenameOf(outputObjectKey);
+
+        try {
+            storageService.storeOutput(outputFilename, request.file().getBytes());
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to read optimized file", exception);
+        }
+
+        String resultImageUrl = request.resultImageUrl() == null || request.resultImageUrl().isBlank()
+                ? publicUrl("output", outputFilename)
+                : request.resultImageUrl().trim();
+
+        imageJob.markSuccess(
+                resultImageUrl,
+                outputObjectKey,
+                request.sourceFileSizeBytes(),
+                request.resultFileSizeBytes() == null ? request.file().getSize() : request.resultFileSizeBytes()
+        );
+
+        return ImageJobResponse.from(imageJob);
+    }
+
     @Transactional(readOnly = true)
     public ResponseEntity<StreamingResponseBody> downloadJobs(User user, List<UUID> jobIds) {
         if (jobIds == null || jobIds.isEmpty()) {
@@ -684,9 +718,20 @@ public class ImageJobService {
             throw new BadRequestException("output object key is missing for job: " + job.getId());
         }
 
-        String outputObjectKey = job.getOutputObjectKey().replace("\\", "/");
-        int slashIndex = outputObjectKey.lastIndexOf('/');
-        return slashIndex >= 0 ? outputObjectKey.substring(slashIndex + 1) : outputObjectKey;
+        return filenameOf(job.getOutputObjectKey());
+    }
+
+    private String defaultOutputObjectKey(ImageJob job) {
+        if (job.getOutputObjectKey() != null && !job.getOutputObjectKey().isBlank()) {
+            return job.getOutputObjectKey();
+        }
+        return "optimized/" + job.getId() + "." + job.getOutputFormat();
+    }
+
+    private String filenameOf(String objectKey) {
+        String normalized = objectKey.replace("\\", "/");
+        int slashIndex = normalized.lastIndexOf('/');
+        return slashIndex >= 0 ? normalized.substring(slashIndex + 1) : normalized;
     }
 
     private String uniqueEntryName(ImageJob job, Set<String> usedNames) {

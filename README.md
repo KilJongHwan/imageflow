@@ -229,6 +229,14 @@ http://localhost:5173
 - database: Render Postgres
 - 비용 제약이 있으면 sync 또는 단순 모드 사용
 
+### Render 비동기 배포 메모
+
+- 기본 `render.yaml`은 무료 데모 기준의 `backend + postgres` 구성입니다.
+- Render 무료 플랜은 background worker를 지원하지 않아서, full async 배포는 별도 worker 인스턴스가 필요합니다.
+- async 배포 예시는 [render.async.yaml](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/render.async.yaml:1) 에 정리했습니다.
+- 이 예시는 `Render Key Value + starter worker` 기준입니다.
+- 분리 배포 환경에서는 worker가 결과 파일을 백엔드로 다시 업로드하는 callback 경로를 사용하므로, 백엔드와 worker가 로컬 파일 시스템을 직접 공유하지 않아도 됩니다.
+
 자세한 내용은 [docs/deploy-guide.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/deploy-guide.md:1) 에 정리되어 있습니다.
 
 ## 참고 문서

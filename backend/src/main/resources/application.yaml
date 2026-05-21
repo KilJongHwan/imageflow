@@ -17,6 +17,7 @@ spring:
         format_sql: ${JPA_FORMAT_SQL:true}
   data:
     redis:
+      url: ${REDIS_URL:redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}}
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   mail:

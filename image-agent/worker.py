@@ -13,18 +13,37 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_URL = os.getenv("REDIS_URL", "")
 QUEUE_KEY = os.getenv("IMAGE_JOB_QUEUE_KEY", "imageflow:image-jobs")
-BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8080")
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "")
+BACKEND_HOSTPORT = os.getenv("BACKEND_HOSTPORT", "")
 R2_PUBLIC_BASE_URL = os.getenv("R2_PUBLIC_BASE_URL", "https://example-r2-public-url.invalid")
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", "")
 POLL_TIMEOUT_SECONDS = int(os.getenv("POLL_TIMEOUT_SECONDS", "5"))
 WORKER_CONCURRENCY = max(1, int(os.getenv("WORKER_CONCURRENCY", "3")))
+WORKER_RESULT_CALLBACK_ENABLED = os.getenv("WORKER_RESULT_CALLBACK_ENABLED", "false").lower() == "true"
+
+
+def resolve_backend_base_url():
+    if BACKEND_BASE_URL:
+        return BACKEND_BASE_URL.rstrip("/")
+    if BACKEND_HOSTPORT:
+        return f"http://{BACKEND_HOSTPORT}"
+    return "http://localhost:8080"
+
+
+BACKEND_BASE_URL = resolve_backend_base_url()
 
 
 def main():
-    client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+    client = redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else redis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        decode_responses=True,
+    )
+    redis_target = REDIS_URL or f"redis://{REDIS_HOST}:{REDIS_PORT}"
     print(
-        f"[worker] listening on redis://{REDIS_HOST}:{REDIS_PORT} "
+        f"[worker] listening on {redis_target} "
         f"queue={QUEUE_KEY} concurrency={WORKER_CONCURRENCY}"
     )
 
@@ -51,16 +70,19 @@ def process_job(job):
     try:
         update_job(job["jobId"], {"status": "PROCESSING"})
         result = optimize_image(job)
-        update_job(
-            job["jobId"],
-            {
-                "status": "SUCCEEDED",
-                "resultImageUrl": result["resultImageUrl"],
-                "outputObjectKey": result["outputObjectKey"],
-                "sourceFileSizeBytes": result["sourceFileSizeBytes"],
-                "resultFileSizeBytes": result["resultFileSizeBytes"],
-            },
-        )
+        if should_upload_result_file():
+            upload_result_file(job["jobId"], result)
+        else:
+            update_job(
+                job["jobId"],
+                {
+                    "status": "SUCCEEDED",
+                    "resultImageUrl": result["resultImageUrl"],
+                    "outputObjectKey": result["outputObjectKey"],
+                    "sourceFileSizeBytes": result["sourceFileSizeBytes"],
+                    "resultFileSizeBytes": result["resultFileSizeBytes"],
+                },
+            )
         print(f"[worker] job succeeded {job['jobId']}")
     except Exception as error:
         update_job(
@@ -100,13 +122,16 @@ def optimize_image(job):
     save_image(image, output_buffer, output_format, quality)
     output_buffer.seek(0)
 
-    upload_to_r2_or_local(object_key, output_buffer.getvalue(), output_format, output_file_path)
+    output_bytes = output_buffer.getvalue()
+    if not should_upload_result_file():
+        upload_to_r2_or_local(object_key, output_bytes, output_format, output_file_path)
 
     return {
         "outputObjectKey": object_key,
         "resultImageUrl": result_image_url or f"{R2_PUBLIC_BASE_URL.rstrip('/')}/{object_key}",
         "sourceFileSizeBytes": source_size_bytes(job),
-        "resultFileSizeBytes": len(output_buffer.getvalue()),
+        "resultFileSizeBytes": len(output_bytes),
+        "outputBytes": output_bytes,
     }
 
 
@@ -466,6 +491,50 @@ def update_job(job_id, payload):
         timeout=15,
     )
     response.raise_for_status()
+
+
+def upload_result_file(job_id, result):
+    files = {
+        "file": (
+            Path(result["outputObjectKey"]).name,
+            result["outputBytes"],
+            guess_content_type(result["outputObjectKey"]),
+        )
+    }
+    data = {
+        "outputObjectKey": result["outputObjectKey"],
+        "resultImageUrl": result["resultImageUrl"],
+        "resultFileSizeBytes": result["resultFileSizeBytes"],
+    }
+    if result["sourceFileSizeBytes"] is not None:
+        data["sourceFileSizeBytes"] = result["sourceFileSizeBytes"]
+    response = requests.patch(
+        f"{BACKEND_BASE_URL.rstrip('/')}/api/image-jobs/{job_id}/result-file",
+        files=files,
+        data=data,
+        timeout=30,
+    )
+    response.raise_for_status()
+
+
+def should_upload_result_file():
+    access_key = os.getenv("R2_ACCESS_KEY_ID")
+    secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
+    bucket_name = os.getenv("R2_BUCKET_NAME")
+    endpoint = os.getenv("R2_ENDPOINT")
+    has_object_storage = all([access_key, secret_key, bucket_name, endpoint])
+    return WORKER_RESULT_CALLBACK_ENABLED and not has_object_storage
+
+
+def guess_content_type(object_key):
+    suffix = Path(object_key).suffix.lower()
+    if suffix == ".webp":
+        return "image/webp"
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".png":
+        return "image/png"
+    return "application/octet-stream"
 
 
 def source_size_bytes(job):
