@@ -49,7 +49,9 @@ python worker.py
 3. `BACKEND_BASE_URL` 을 현재 Render backend URL로 맞춥니다.
 4. 아래처럼 실행합니다.
 
-```powershell
+```bash
+cd imageagent
+python -m pip install -r requirements.txt
 Copy-Item .env.render-local-worker.example .env.render-local-worker
 # 값 수정 후
 .\run-render-local-worker.ps1
