@@ -47,15 +47,12 @@ python worker.py
 1. [image-agent/.env.render-local-worker.example](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/.env.render-local-worker.example:1) 를 기준으로 값을 복사합니다.
 2. `REDIS_URL` 을 Render Key Value connection string으로 교체합니다.
 3. `BACKEND_BASE_URL` 을 현재 Render backend URL로 맞춥니다.
-4. 아래처럼 PowerShell에서 실행합니다.
+4. 아래처럼 실행합니다.
 
 ```powershell
-$env:REDIS_URL="redis://default:<password>@<host>:6379"
-$env:IMAGE_JOB_QUEUE_KEY="imageflow:image-jobs"
-$env:BACKEND_BASE_URL="https://imageflow-backend-yol7.onrender.com"
-$env:WORKER_RESULT_CALLBACK_ENABLED="true"
-$env:WORKER_CONCURRENCY="3"
-python worker.py
+Copy-Item .env.render-local-worker.example .env.render-local-worker
+# 값 수정 후
+.\run-render-local-worker.ps1
 ```
 
 이 모드에서는 worker가 queue를 로컬에서 소비하고, 결과 파일은 backend callback endpoint로 다시 업로드합니다.
