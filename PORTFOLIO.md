@@ -16,6 +16,14 @@
 - Docker 실행: `docker compose` 기반
 - 부하테스트: [concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1)
 
+현재 데모 배포 구성:
+
+- frontend: Vercel
+- backend: Render Web Service
+- database: Render Postgres
+- queue: Render Key Value
+- worker: local machine
+
 배포본 확인 흐름:
 
 1. `https://imageflow-rose.vercel.app`

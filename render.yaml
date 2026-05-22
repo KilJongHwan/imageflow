@@ -29,6 +29,11 @@ services:
         fromDatabase:
           name: imageflow-db
           property: password
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: imageflow-queue
+          property: connectionString
       - key: APP_PUBLIC_BASE_URL
         sync: false
       - key: APP_CORS_ALLOWED_ORIGINS
@@ -38,11 +43,15 @@ services:
       - key: APP_STORAGE_ROOT
         value: /tmp/imageflow-storage
       - key: APP_PROCESSING_MODE
-        value: sync
+        value: worker
       - key: APP_QUEUE_ENABLED
-        value: "false"
-      - key: SPRING_AUTOCONFIGURE_EXCLUDE
-        value: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+        value: "true"
+
+  - type: keyvalue
+    name: imageflow-queue
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
 
 databases:
   - name: imageflow-db
