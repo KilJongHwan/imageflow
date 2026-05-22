@@ -10,9 +10,19 @@
 셀러나 운영 담당자가 여러 장의 이미지를 올리고, 필요한 규격으로 자르고, 최적화 결과를 확인한 뒤 한 번에 내려받을 수 있도록 만들었습니다.
 
 - 서비스 URL: `https://imageflow-rose.vercel.app`
-- API 문서: Swagger UI(`/swagger-ui`) 및 [api-reference.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/api-reference.md:1)
+- Backend URL: `https://imageflow-backend-kdt1.onrender.com`
+- API 문서: `https://imageflow-backend-kdt1.onrender.com/swagger-ui` 및 [api-reference.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/api-reference.md:1)
+- Health: `https://imageflow-backend-kdt1.onrender.com/api/health`
 - Docker 실행: `docker compose` 기반
 - 부하테스트: [concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1)
+
+배포본 확인 흐름:
+
+1. `https://imageflow-rose.vercel.app`
+2. 회원가입 또는 로그인
+3. 단일 이미지 또는 ZIP 업로드
+4. 결과 화면에서 절감량과 다운로드 확인
+5. `swagger-ui`, `api/health`로 백엔드 상태 확인
 
 핵심은 두 가지였습니다.
 
