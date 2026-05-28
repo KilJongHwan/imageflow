@@ -405,9 +405,7 @@ public class ImageJobService {
             throw new IllegalStateException("failed to read optimized file", exception);
         }
 
-        String resultImageUrl = request.resultImageUrl() == null || request.resultImageUrl().isBlank()
-                ? publicUrl("output", outputFilename)
-                : request.resultImageUrl().trim();
+        String resultImageUrl = publicUrl("output", outputFilename);
 
         imageJob.markSuccess(
                 resultImageUrl,
