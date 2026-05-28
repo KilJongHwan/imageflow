@@ -144,8 +144,12 @@ export function ResultPanel({ jobs, recentJobs, selectedJobId, onDownloadBatch, 
               <Col xs={24} md={12}>
                 <div className="compare-panel">
                   <Tag color="default">Source</Tag>
-                  {selectedJob.sourceImageUrl ? (
-                    <Image src={selectedJob.sourceImageUrl} alt="source asset" className="result-image" />
+                  {selectedJob.sourceImageUrl || selectedJob.sourceImagePreviewUrl ? (
+                    <Image
+                      src={selectedJob.sourceImagePreviewUrl || selectedJob.sourceImageUrl}
+                      alt="source asset"
+                      className="result-image"
+                    />
                   ) : (
                     <Empty description="원본 프리뷰 없음" />
                   )}

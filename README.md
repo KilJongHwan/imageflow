@@ -227,6 +227,23 @@ http://localhost:5173
 프런트는 화면에서 백엔드 URL을 직접 입력하지 않습니다.  
 개발 환경에서는 기본적으로 `http://localhost:8080` 을 사용하고, 배포 환경에서는 `VITE_API_BASE_URL` 로 API 주소를 관리합니다.
 
+### Local worker against deployed Render queue
+
+1. [image-agent/.env.render-local-worker.example](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/image-agent/.env.render-local-worker.example:1) 를 기준으로 값을 복사합니다.
+2. `REDIS_URL` 을 Render Key Value connection string으로 교체합니다.
+3. `BACKEND_BASE_URL` 을 현재 Render backend URL로 맞춥니다.
+4. 아래처럼 실행합니다.
+
+```bash
+cd imageagent
+python -m pip install -r requirements.txt
+Copy-Item .env.render-local-worker.example .env.render-local-worker
+# 값 수정 후
+.\run-render-local-worker.ps1
+```
+
+이 모드에서는 worker가 queue를 로컬에서 소비하고, 결과 파일은 backend callback endpoint로 다시 업로드합니다.
+
 ### 4. 선택 설정
 
 소셜 로그인 버튼을 실제 인증 페이지와 연결하려면 아래 값을 설정합니다.

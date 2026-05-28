@@ -78,6 +78,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [publicScreen, setPublicScreen] = useState("landing");
   const [files, setFiles] = useState([]);
+  const [filePreviewUrls, setFilePreviewUrls] = useState(new Map());
   const [options, setOptions] = useState(initialOptions);
   const [statusMessage, setStatusMessage] = useState("로그인 후 이미지를 업로드하면 바로 최적화를 시작할 수 있습니다.");
   const [jobs, setJobs] = useState([]);
@@ -236,6 +237,20 @@ export default function App() {
     const invalidFiles = nextFiles.filter((file) => !isSupportedUploadFile(file));
 
     setFiles((currentFiles) => mergeFiles(currentFiles, validFiles));
+
+    setFilePreviewUrls((currentUrls) => {
+      const updated = new Map(currentUrls);
+      for (const file of validFiles) {
+        if (!isZipFile(file)) {
+          const key = `${file.name}|${file.size}|${file.lastModified}`;
+          if (!updated.has(key)) {
+            updated.set(key, URL.createObjectURL(file));
+          }
+        }
+      }
+      return updated;
+    });
+
     setOptions((current) => ({
       ...current,
       cropX: "",
@@ -269,10 +284,27 @@ export default function App() {
             && file.lastModified === fileToRemove.lastModified)
       )
     );
+
+    const key = `${fileToRemove.name}|${fileToRemove.size}|${fileToRemove.lastModified}`;
+    setFilePreviewUrls((currentUrls) => {
+      const updated = new Map(currentUrls);
+      const previewUrl = updated.get(key);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        updated.delete(key);
+      }
+      return updated;
+    });
   }
 
   function handleClearFiles() {
     setFiles([]);
+
+    setFilePreviewUrls((currentUrls) => {
+      currentUrls.forEach((url) => URL.revokeObjectURL(url));
+      return new Map();
+    });
+
     setOptions((current) => ({
       ...current,
       cropX: "",
@@ -550,20 +582,29 @@ export default function App() {
         body: formData
       });
       const nextJobs = Array.isArray(created.jobs) ? created.jobs : [created];
-      setJobs(nextJobs);
-      setSelectedJobId(nextJobs[0]?.id || "");
-      mergeJobsIntoHistory(nextJobs);
+
+      const nonZipFiles = files.filter((f) => !isZipFile(f));
+      const jobsWithPreview = nextJobs.map((job, index) => ({
+        ...job,
+        sourceImagePreviewUrl: index < nonZipFiles.length
+          ? filePreviewUrls.get(`${nonZipFiles[index].name}|${nonZipFiles[index].size}|${nonZipFiles[index].lastModified}`)
+          : undefined
+      }));
+
+      setJobs(jobsWithPreview);
+      setSelectedJobId(jobsWithPreview[0]?.id || "");
+      mergeJobsIntoHistory(jobsWithPreview);
       setStatusMessage(
-        nextJobs.length > 1
-          ? `${nextJobs.length}개 작업이 등록되었습니다. 결과를 확인하고 ZIP으로 다운로드할 수 있습니다.`
+        jobsWithPreview.length > 1
+          ? `${jobsWithPreview.length}개 작업이 등록되었습니다. 결과를 확인하고 ZIP으로 다운로드할 수 있습니다.`
           : "큐에 등록되었습니다. 최적화 결과를 확인하는 중입니다."
       );
-      if (nextJobs.length === 1) {
+      if (jobsWithPreview.length === 1) {
         pollingEnabledRef.current = true;
-        pollJob(nextJobs[0].id);
+        pollJob(jobsWithPreview[0].id);
       } else {
         pollingEnabledRef.current = true;
-        pollBatch(nextJobs.map((job) => job.id));
+        pollBatch(jobsWithPreview.map((job) => job.id));
       }
     } catch (submitError) {
       setError(formatApiErrorMessage(submitError.message));
@@ -585,7 +626,13 @@ export default function App() {
       if (!pollingEnabledRef.current) {
         return;
       }
-      setJobs([latestJob]);
+      setJobs((currentJobs) => {
+        const existingJob = currentJobs.find((j) => j.id === latestJob.id);
+        return [{
+          ...latestJob,
+          sourceImagePreviewUrl: existingJob?.sourceImagePreviewUrl
+        }];
+      });
       mergeJobsIntoHistory([latestJob]);
       setSelectedJobId(latestJob.id);
 
@@ -627,7 +674,13 @@ export default function App() {
         return;
       }
 
-      setJobs(latestJobs);
+      setJobs((currentJobs) => {
+        const previewUrlMap = new Map(currentJobs.map((j) => [j.id, j.sourceImagePreviewUrl]));
+        return latestJobs.map((job) => ({
+          ...job,
+          sourceImagePreviewUrl: previewUrlMap.get(job.id)
+        }));
+      });
       mergeJobsIntoHistory(latestJobs);
       setSelectedJobId((currentSelectedId) => {
         if (currentSelectedId && latestJobs.some((job) => job.id === currentSelectedId)) {
