@@ -10,9 +10,9 @@
 셀러나 운영 담당자가 여러 장의 이미지를 올리고, 필요한 규격으로 자르고, 최적화 결과를 확인한 뒤 한 번에 내려받을 수 있도록 만들었습니다.
 
 - 서비스 URL: `https://imageflow-rose.vercel.app`
-- Backend URL: `https://imageflow-backend-kdt1.onrender.com`
-- API 문서: `https://imageflow-backend-kdt1.onrender.com/swagger-ui` 및 [api-reference.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/api-reference.md:1)
-- Health: `https://imageflow-backend-kdt1.onrender.com/api/health`
+- Backend URL: `https://imageflow-backend-yol7.onrender.com`
+- API 문서: `https://imageflow-backend-yol7.onrender.com/swagger-ui` 및 [api-reference.md](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/docs/api-reference.md:1)
+- Health: `https://imageflow-backend-yol7.onrender.com/api/health`
 - Docker 실행: `docker compose` 기반
 - 부하테스트: [concurrent_upload_test.py](/abs/path/c:/Users/tsline/IdeaProjects/imageflow/load-tests/concurrent_upload_test.py:1)
 
