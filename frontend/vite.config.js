@@ -5,5 +5,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173
+  },
+  build: {
+    target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          antd: ["antd"],
+          icons: ["@ant-design/icons"],
+          react: ["react", "react-dom"]
+        }
+      }
+    }
   }
 });

@@ -117,35 +117,7 @@ public class ImageJobService {
         );
         user.addUsageRecord(usageRecord);
         usageRecordRepository.save(usageRecord);
-        imageJobQueuePublisher.publish(new ImageJobQueueMessage(
-                savedJob.getId(),
-                user.getId(),
-                null,
-                savedJob.getSourceImageUrl(),
-                savedJob.getPrompt(),
-                savedJob.getTargetWidth(),
-                savedJob.getTargetHeight(),
-                savedJob.getQuality(),
-                savedJob.getOutputFormat(),
-                savedJob.getAspectRatio(),
-                savedJob.getWatermarkText(),
-                savedJob.getWatermarkFontFamily(),
-                savedJob.getWatermarkAccentText(),
-                savedJob.getWatermarkImageUrl(),
-                null,
-                savedJob.getWatermarkStyle(),
-                savedJob.getWatermarkPosition(),
-                savedJob.getWatermarkOpacity(),
-                savedJob.getWatermarkScalePercent(),
-                savedJob.getCropMode(),
-                savedJob.getCropX(),
-                savedJob.getCropY(),
-                savedJob.getCropWidth(),
-                savedJob.getCropHeight(),
-                "optimized/" + savedJob.getId() + "." + savedJob.getOutputFormat(),
-                null,
-                null
-        ));
+        imageJobQueuePublisher.publish(ImageJobQueueMessage.fromGenerationJob(savedJob));
 
         return ImageJobResponse.from(savedJob);
     }
@@ -254,33 +226,12 @@ public class ImageJobService {
                 savedJob.getId().toString(),
                 "Credits used for image optimization job"
         ));
-        ImageJobQueueMessage queueMessage = new ImageJobQueueMessage(
-                savedJob.getId(),
-                user.getId(),
+        ImageJobQueueMessage queueMessage = ImageJobQueueMessage.from(
+                savedJob,
                 storedFile.path().toString(),
-                savedJob.getSourceImageUrl(),
-                savedJob.getPrompt(),
-                savedJob.getTargetWidth(),
-                savedJob.getTargetHeight(),
-                savedJob.getQuality(),
-                savedJob.getOutputFormat(),
-                savedJob.getAspectRatio(),
-                savedJob.getWatermarkText(),
-                savedJob.getWatermarkFontFamily(),
-                savedJob.getWatermarkAccentText(),
-                savedJob.getWatermarkImageUrl(),
-                watermarkStoredFile == null ? null : watermarkStoredFile.path().toString(),
-                savedJob.getWatermarkStyle(),
-                savedJob.getWatermarkPosition(),
-                savedJob.getWatermarkOpacity(),
-                savedJob.getWatermarkScalePercent(),
-                savedJob.getCropMode(),
-                savedJob.getCropX(),
-                savedJob.getCropY(),
-                savedJob.getCropWidth(),
-                savedJob.getCropHeight(),
+                watermarkStoredFile,
                 outputFilename,
-                outputPath.toString(),
+                outputPath,
                 publicUrl("output", outputFilename)
         );
 

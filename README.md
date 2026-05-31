@@ -213,7 +213,7 @@ cd backend
 http://localhost:8080
 ```
 
-### 3. 프런트 실행
+### 3. 프론트 실행
 
 ```bash
 cd frontend
@@ -227,7 +227,7 @@ npm run dev
 http://localhost:5173
 ```
 
-프런트는 화면에서 백엔드 URL을 직접 입력하지 않습니다.  
+프론트는 화면에서 백엔드 URL을 직접 입력하지 않습니다.  
 개발 환경에서는 기본적으로 `http://localhost:8080` 을 사용하고, 배포 환경에서는 `VITE_API_BASE_URL` 로 API 주소를 관리합니다.
 
 ### Local worker against deployed Render queue
@@ -312,4 +312,4 @@ Copy-Item .env.render-local-worker.example .env.render-local-worker
 - R2/S3 완전 이전은 아직 진행 중입니다.
 - billing은 제품 방향 수준까지 정리되어 있고 실제 결제 연동은 미완성입니다.
 - monitoring은 기본 health/rate limit/retry 수준이며 observability는 더 확장할 수 있습니다.
-- 프런트 번들 크기는 추가 최적화 여지가 있습니다.
+- 프론트 번들 크기는 추가 최적화 여지가 있습니다.
