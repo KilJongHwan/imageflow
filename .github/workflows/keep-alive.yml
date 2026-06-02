@@ -1,0 +1,17 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/14 * * * *'  # 14분마다 실행 (15분 sleep 전 방지)
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend
+        run: |
+          curl -f https://imageflow-backend-yol7.onrender.com/api/health || true
+
+      - name: Log timestamp
+        run: echo "Keep-alive ping sent at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
