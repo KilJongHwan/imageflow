@@ -13,6 +13,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.util.zip.ZipInputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,6 +45,8 @@ import com.imageflow.backend.queue.ImageJobQueuePublisher;
 @Transactional
 public class ImageJobService {
 
+    private static final Logger log = LoggerFactory.getLogger(ImageJobService.class);
+
     private final ImageJobRepository imageJobRepository;
     private final UsageRecordRepository usageRecordRepository;
     private final ImageJobQueuePublisher imageJobQueuePublisher;
@@ -50,6 +54,8 @@ public class ImageJobService {
     private final String publicBaseUrl;
     private final boolean queueEnabled;
     private final int maxBatchSize;
+    private final long maxFileBytes;
+    private final long maxTotalBytes;
     private final int maxZipEntryCount;
     private final long maxZipEntryBytes;
     private final long maxZipTotalBytes;
@@ -62,6 +68,8 @@ public class ImageJobService {
             @Value("${app.public-base-url:http://localhost:8080}") String publicBaseUrl,
             @Value("${app.queue.enabled:true}") boolean queueEnabled,
             @Value("${app.upload.max-batch-size:10}") int maxBatchSize,
+            @Value("${app.upload.max-file-bytes:10485760}") long maxFileBytes,
+            @Value("${app.upload.max-total-bytes:41943040}") long maxTotalBytes,
             @Value("${app.upload.max-zip-entry-count:32}") int maxZipEntryCount,
             @Value("${app.upload.max-zip-entry-bytes:20971520}") long maxZipEntryBytes,
             @Value("${app.upload.max-zip-total-bytes:52428800}") long maxZipTotalBytes
@@ -73,6 +81,8 @@ public class ImageJobService {
         this.publicBaseUrl = publicBaseUrl;
         this.queueEnabled = queueEnabled;
         this.maxBatchSize = maxBatchSize;
+        this.maxFileBytes = maxFileBytes;
+        this.maxTotalBytes = maxTotalBytes;
         this.maxZipEntryCount = maxZipEntryCount;
         this.maxZipEntryBytes = maxZipEntryBytes;
         this.maxZipTotalBytes = maxZipTotalBytes;
@@ -236,6 +246,10 @@ public class ImageJobService {
         );
 
         imageJobQueuePublisher.publish(queueMessage);
+
+        // 여기서 남긴 jobId로 워커 로그(job=<id>)와 이어서 추적할 수 있다.
+        log.info("image job queued jobId={} userId={} sourceBytes={}",
+                savedJob.getId(), user.getId(), uploadBinary.size());
 
         return ImageJobResponse.from(savedJob);
     }
@@ -549,6 +563,7 @@ public class ImageJobService {
         if (!storageService.isSupportedImageFilename(originalFilename)) {
             throw new BadRequestException("only jpg, jpeg, png and webp images are allowed");
         }
+        validateFileBytes(originalFilename, file.getSize());
 
         try {
             byte[] bytes = file.getBytes();
@@ -575,7 +590,28 @@ public class ImageJobService {
             throw new BadRequestException("no supported image files were found");
         }
 
+        // 배치 전체가 저장이 끝날 때까지 힙에 남으므로, 실제로 메모리에 담겨야 하는 건
+        // 가장 큰 파일 하나가 아니라 배치 합계다.
+        long totalBytes = uploadBinaries.stream().mapToLong(UploadBinary::size).sum();
+        if (totalBytes > maxTotalBytes) {
+            log.warn("배치 합계 용량 초과로 거절 totalBytes={} limit={}", totalBytes, maxTotalBytes);
+            throw new BadRequestException(
+                    "total upload size is too large: %d bytes (limit %d)".formatted(totalBytes, maxTotalBytes)
+            );
+        }
+
         return uploadBinaries;
+    }
+
+    private void validateFileBytes(String originalFilename, long sizeBytes) {
+        if (sizeBytes > maxFileBytes) {
+            log.warn("파일 용량 초과로 거절 file={} sizeBytes={} limit={}",
+                    originalFilename, sizeBytes, maxFileBytes);
+            throw new BadRequestException(
+                    "image file is too large: %s (%d bytes, limit %d)"
+                            .formatted(originalFilename, sizeBytes, maxFileBytes)
+            );
+        }
     }
 
     private List<UploadBinary> extractZipImages(MultipartFile archive) {

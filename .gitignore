@@ -1,6 +1,16 @@
-# 환경변수
+# 환경변수 (.env.render-local-worker 처럼 접미사가 붙는 이름까지 포함)
 .env
 *.env
+.env.*
+!.env.*.example
+
+# 내부 메모 (미공개 취약점 내용 포함 - 커밋 금지)
+INTERNAL-NOTES.md
+interview/
+
+# 부하 테스트 산출물
+load-tests/bench/photos/
+load-tests/bench/results/
 
 # Spring Boot
 backend/build/

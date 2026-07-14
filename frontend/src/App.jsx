@@ -9,6 +9,13 @@ import { ResultPanel } from "./components/ResultPanel";
 import { WorkspaceDashboard } from "./components/WorkspaceDashboard";
 
 const POLL_INTERVAL_MS = 2500;
+const HEALTH_TIMEOUT_MS = 8000;
+const WAKE_RETRY_DELAY_MS = 2500;
+const WAKE_MAX_ATTEMPTS = 20;
+// 백엔드 app.upload 한도와 맞춰둡니다. 무료 인스턴스 메모리 안에서 처리할 수 있는 크기입니다.
+const MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_ZIP_FILE_BYTES = 40 * 1024 * 1024;
+const MAX_TOTAL_UPLOAD_BYTES = 40 * 1024 * 1024;
 const TOKEN_STORAGE_KEY = "imageflow.jwt";
 const DEFAULT_API_BASE_URL = import.meta.env.DEV
   ? "http://localhost:8080"
@@ -38,17 +45,33 @@ const initialOptions = {
   cropHeight: ""
 };
 
+function formatMegabytes(bytes) {
+  return `${Math.round(bytes / (1024 * 1024))}MB`;
+}
+
 function formatApiErrorMessage(message) {
   if (!message) {
     return "요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.";
   }
 
+  if (message.includes("image file is too large")) {
+    return `이미지 용량이 너무 커서 메모리가 부족합니다. 한 장당 ${formatMegabytes(MAX_IMAGE_FILE_BYTES)} 이하로 줄여서 업로드해주세요.`;
+  }
+
+  if (message.includes("total upload size is too large")) {
+    return `한 번에 올린 이미지 용량이 너무 커서 메모리가 부족합니다. 합계 ${formatMegabytes(MAX_TOTAL_UPLOAD_BYTES)} 이하로 나눠서 업로드해주세요.`;
+  }
+
+  if (message.includes("image resolution is too large")) {
+    return "이미지 해상도가 너무 커서 메모리가 부족합니다. 3000만 화소 이하로 줄여서 업로드해주세요.";
+  }
+
   if (message.includes("zip entry is too large")) {
-    return "ZIP 안의 개별 이미지가 너무 큽니다. 한 장당 50MB 이하 이미지로 다시 압축해서 업로드해주세요.";
+    return `ZIP 안의 개별 이미지 용량이 너무 커서 메모리가 부족합니다. 한 장당 ${formatMegabytes(MAX_IMAGE_FILE_BYTES)} 이하 이미지로 다시 압축해서 업로드해주세요.`;
   }
 
   if (message.includes("zip archive is too large after extraction")) {
-    return "ZIP 전체 압축 해제 용량이 너무 큽니다. 이미지 수를 줄이거나 ZIP을 나눠서 업로드해주세요.";
+    return `ZIP 압축 해제 용량이 너무 커서 메모리가 부족합니다. 합계 ${formatMegabytes(MAX_TOTAL_UPLOAD_BYTES)} 이하로 나눠서 업로드해주세요.`;
   }
 
   if (message.includes("zip archive contains too many entries")) {
@@ -62,7 +85,7 @@ function formatApiErrorMessage(message) {
   if (message.includes("Maximum upload size exceeded")
     || message.includes("max-request-size")
     || message.includes("max-file-size")) {
-    return "업로드 용량이 너무 큽니다. 파일 크기를 줄이거나 여러 번 나눠 업로드해주세요.";
+    return `이미지 용량이 너무 커서 메모리가 부족합니다. 한 장당 ${formatMegabytes(MAX_IMAGE_FILE_BYTES)}, 합계 ${formatMegabytes(MAX_TOTAL_UPLOAD_BYTES)} 이하로 나눠서 업로드해주세요.`;
   }
 
   if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
@@ -102,6 +125,7 @@ export default function App() {
     lastCheckedAt: "",
     message: ""
   });
+  const [wakeAttempt, setWakeAttempt] = useState(0);
   const pollTimerRef = useRef(null);
   const pollingEnabledRef = useRef(false);
   const dragDepthRef = useRef(0);
@@ -233,8 +257,10 @@ export default function App() {
   }
 
   function handleFilesSelected(nextFiles) {
-    const validFiles = nextFiles.filter(isSupportedUploadFile);
+    const supportedFiles = nextFiles.filter(isSupportedUploadFile);
     const invalidFiles = nextFiles.filter((file) => !isSupportedUploadFile(file));
+    const oversizedFiles = supportedFiles.filter((file) => !isWithinSizeLimit(file));
+    const validFiles = supportedFiles.filter(isWithinSizeLimit);
 
     setFiles((currentFiles) => mergeFiles(currentFiles, validFiles));
 
@@ -259,11 +285,21 @@ export default function App() {
       cropHeight: ""
     }));
 
-    if (invalidFiles.length > 0) {
+    if (oversizedFiles.length > 0) {
+      const excludedNames = oversizedFiles.map((file) => file.name).join(", ");
+      setError(
+        `이미지 용량이 너무 커서 메모리가 부족합니다. 한 장당 ${formatMegabytes(MAX_IMAGE_FILE_BYTES)} 이하로 줄여서 업로드해주세요. (제외된 파일: ${excludedNames})`
+      );
+    } else if (invalidFiles.length > 0) {
       setError("jpg, jpeg, png, webp 이미지와 zip 파일만 업로드할 수 있습니다.");
     } else {
       setError("");
     }
+  }
+
+  function isWithinSizeLimit(file) {
+    const limitBytes = isZipFile(file) ? MAX_ZIP_FILE_BYTES : MAX_IMAGE_FILE_BYTES;
+    return file.size <= limitBytes;
   }
 
   function isZipFile(file) {
@@ -368,40 +404,85 @@ export default function App() {
     return payload;
   }
 
-  async function checkHealth() {
+  function delay(durationMs) {
+    return new Promise((resolve) => setTimeout(resolve, durationMs));
+  }
+
+  async function fetchHealthOnce(timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/health`);
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/health`, {
+        signal: controller.signal
+      });
       if (!response.ok) {
         throw new Error(`health check failed with ${response.status}`);
       }
-
-      const payload = await response.json();
-      setHealth({
-        status: "online",
-        processingMode: payload.processingMode || "",
-        maxBatchSize: payload.maxBatchSize ?? null,
-        queueEnabled: Boolean(payload.queueEnabled),
-        queueDepth: payload.queueDepth ?? 0,
-        outboxPendingCount: payload.outboxPendingCount ?? 0,
-        maxQueueBacklogDepth: payload.maxQueueBacklogDepth ?? null,
-        queueWritable: payload.queueWritable ?? true,
-        lastCheckedAt: payload.timestamp || new Date().toISOString(),
-        message: ""
-      });
-    } catch (_error) {
-      setHealth({
-        status: "offline",
-        processingMode: "",
-        maxBatchSize: null,
-        queueEnabled: false,
-        queueDepth: 0,
-        outboxPendingCount: 0,
-        maxQueueBacklogDepth: null,
-        queueWritable: true,
-        lastCheckedAt: new Date().toISOString(),
-        message: "API health endpoint에 연결할 수 없습니다."
-      });
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
     }
+  }
+
+  function applyOnlineHealth(payload) {
+    setHealth({
+      status: "online",
+      processingMode: payload.processingMode || "",
+      maxBatchSize: payload.maxBatchSize ?? null,
+      queueEnabled: Boolean(payload.queueEnabled),
+      queueDepth: payload.queueDepth ?? 0,
+      outboxPendingCount: payload.outboxPendingCount ?? 0,
+      maxQueueBacklogDepth: payload.maxQueueBacklogDepth ?? null,
+      queueWritable: payload.queueWritable ?? true,
+      lastCheckedAt: payload.timestamp || new Date().toISOString(),
+      message: ""
+    });
+  }
+
+  // Render 무료 서버는 15분 미사용 시 슬립에 들어가 첫 요청이 느립니다.
+  // 빠른 1회 프로브로 깨어있으면 바로 통과하고, 느리면 깨어날 때까지 재시도합니다.
+  // (이 화면 오버레이는 서버를 깨워두는 keep-alive가 아니라, 콜드스타트가
+  //  실제로 발생했을 때 방문자에게 보여줄 폴백입니다. keep-alive는 GitHub Actions cron이 담당합니다.)
+  async function checkHealth() {
+    try {
+      const payload = await fetchHealthOnce(HEALTH_TIMEOUT_MS);
+      applyOnlineHealth(payload);
+      return;
+    } catch (_error) {
+      // 첫 프로브 실패/타임아웃 → 슬립 상태로 보고 깨우기 루프로 진입합니다.
+    }
+
+    // 로컬 개발 환경에는 콜드스타트(슬립)가 없으므로 깨우기 재시도 루프를 돌지 않습니다.
+    // 백엔드가 떠 있지 않으면 한 번만 확인하고 바로 offline 으로 표시합니다.
+    if (!import.meta.env.DEV) {
+      setHealth((current) => ({ ...current, status: "waking", message: "" }));
+
+      for (let attempt = 1; attempt <= WAKE_MAX_ATTEMPTS; attempt += 1) {
+        setWakeAttempt(attempt);
+        try {
+          const payload = await fetchHealthOnce(HEALTH_TIMEOUT_MS);
+          applyOnlineHealth(payload);
+          setWakeAttempt(0);
+          return;
+        } catch (_error) {
+          await delay(WAKE_RETRY_DELAY_MS);
+        }
+      }
+    }
+
+    setWakeAttempt(0);
+    setHealth({
+      status: "offline",
+      processingMode: "",
+      maxBatchSize: null,
+      queueEnabled: false,
+      queueDepth: 0,
+      outboxPendingCount: 0,
+      maxQueueBacklogDepth: null,
+      queueWritable: true,
+      lastCheckedAt: new Date().toISOString(),
+      message: "API health endpoint에 연결할 수 없습니다."
+    });
   }
 
   async function loadAuthProviders() {
@@ -529,6 +610,13 @@ export default function App() {
 
     if (!files.length) {
       setError("먼저 최적화할 이미지를 선택해주세요.");
+      return;
+    }
+    const totalUploadBytes = files.reduce((total, file) => total + file.size, 0);
+    if (totalUploadBytes > MAX_TOTAL_UPLOAD_BYTES) {
+      setError(
+        `한 번에 올린 이미지 용량이 너무 커서 메모리가 부족합니다. 합계 ${formatMegabytes(MAX_TOTAL_UPLOAD_BYTES)} 이하로 나눠서 업로드해주세요. (현재 ${formatMegabytes(totalUploadBytes)})`
+      );
       return;
     }
     if (options.cropMode === "manual" && files.length > 1) {
@@ -750,12 +838,16 @@ export default function App() {
       : "-",
     summary: health.status === "online"
       ? "백엔드와 정상 연결되었습니다."
-      : health.status === "checking"
-        ? "백엔드 연결 상태를 확인하는 중입니다."
-        : "백엔드 연결에 실패했습니다.",
+      : health.status === "waking"
+        ? "서버를 깨우는 중입니다."
+        : health.status === "checking"
+          ? "백엔드 연결 상태를 확인하는 중입니다."
+          : "백엔드 연결에 실패했습니다.",
     description: health.status === "online"
       ? `${health.processingMode || "sync"} 모드 / 배치 최대 ${health.maxBatchSize || "-"}개 / ${health.queueEnabled ? `queue ${health.queueDepth ?? 0}/${health.maxQueueBacklogDepth || "-"}` : "queue disabled"}`
-      : "배포 환경 설정 또는 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
+      : health.status === "waking"
+        ? "무료 서버가 슬립에서 깨어나는 중입니다. 30~60초 정도 걸릴 수 있어요."
+        : "배포 환경 설정 또는 백엔드 실행 상태를 확인한 뒤 다시 시도해주세요."
   };
 
   return (
@@ -772,6 +864,24 @@ export default function App() {
       }}
     >
       <div className="app-shell">
+        {health.status === "waking" ? (
+          <div className="wake-overlay">
+            <div className="wake-card">
+              <span className="section-kicker">Server Warming Up</span>
+              <div className="wake-spinner" aria-hidden="true" />
+              <strong>서버를 깨우는 중입니다</strong>
+              <p>
+                무료 호스팅(Render)은 일정 시간 미사용 시 잠자기 상태로 전환됩니다.
+                지금 첫 요청을 처리할 수 있도록 서버를 깨우고 있어요. 보통 30~60초 정도 걸립니다.
+              </p>
+              <div className="wake-progress" aria-hidden="true"><span /></div>
+              {wakeAttempt > 1 ? (
+                <p className="wake-hint">계속 깨우는 중이에요 · 시도 {wakeAttempt}회</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {pageDropActive ? (
           <div className="page-drop-overlay">
             <div className="page-drop-card">

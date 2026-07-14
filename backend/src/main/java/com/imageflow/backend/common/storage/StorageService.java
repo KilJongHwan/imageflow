@@ -6,12 +6,15 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Iterator;
 import java.util.UUID;
 import java.util.Set;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,9 +28,14 @@ public class StorageService {
 
     private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp");
     private final Path rootPath;
+    private final long maxImagePixels;
 
-    public StorageService(StorageProperties storageProperties) {
+    public StorageService(
+            StorageProperties storageProperties,
+            @Value("${app.upload.max-image-pixels:30000000}") long maxImagePixels
+    ) {
         this.rootPath = Path.of(storageProperties.getRoot()).toAbsolutePath().normalize();
+        this.maxImagePixels = maxImagePixels;
     }
 
     @PostConstruct
@@ -125,16 +133,41 @@ public class StorageService {
         return ".zip".equals(resolveExtension(originalFilename));
     }
 
+    /**
+     * 이미지 헤더만 읽어서 파일 유효성과 해상도를 확인한다.
+     * ImageIO.read()로 통째로 디코딩하면 폭 * 높이 * 4바이트만큼 힙을 할당하는데, 폰 사진 한 장만으로도
+     * 작은 컨테이너의 힙 예산을 넘어선다.
+     */
     public void validateImageBytes(String originalFilename, byte[] bytes) {
         String extension = resolveExtension(originalFilename);
 
-        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes)) {
-            BufferedImage image = ImageIO.read(inputStream);
-            if (image == null) {
+        try (ImageInputStream imageInputStream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            Iterator<ImageReader> readers = imageInputStream == null
+                    ? null
+                    : ImageIO.getImageReaders(imageInputStream);
+
+            if (readers == null || !readers.hasNext()) {
+                // The JDK ships no WebP reader, so fall back to the container signature.
                 if (".webp".equals(extension) && looksLikeWebp(bytes)) {
                     return;
                 }
                 throw new BadRequestException("uploaded file is not a valid image: " + originalFilename);
+            }
+
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(imageInputStream);
+                long pixels = (long) reader.getWidth(0) * reader.getHeight(0);
+                if (pixels > maxImagePixels) {
+                    throw new BadRequestException(
+                            "image resolution is too large: %s (%d pixels, limit %d)"
+                                    .formatted(originalFilename, pixels, maxImagePixels)
+                    );
+                }
+            } catch (IOException exception) {
+                throw new BadRequestException("uploaded file is not a valid image: " + originalFilename);
+            } finally {
+                reader.dispose();
             }
         } catch (IOException exception) {
             throw new IllegalStateException("failed to validate uploaded image", exception);

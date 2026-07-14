@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +10,15 @@ from urllib.parse import urlparse, urlunparse
 import redis
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+
+# 타임스탬프·레벨·메시지에 실은 jobId 형태의 구조화 로그. 같은 jobId를 백엔드도 남기므로
+# job 하나를 워커와 백엔드 로그에서 함께 grep으로 추적할 수 있다.
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)-5s [worker] %(message)s",
+)
+logger = logging.getLogger("imageflow.worker")
 
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -42,18 +52,26 @@ def main():
         decode_responses=True,
     )
     redis_target = REDIS_URL or f"redis://{REDIS_HOST}:{REDIS_PORT}"
-    print(
-        f"[worker] listening on {redis_target} "
-        f"queue={QUEUE_KEY} concurrency={WORKER_CONCURRENCY}"
+    logger.info(
+        "listening on %s queue=%s concurrency=%s",
+        redis_target, QUEUE_KEY, WORKER_CONCURRENCY,
     )
 
     with ThreadPoolExecutor(max_workers=WORKER_CONCURRENCY) as executor:
-        active_futures = set()
+        inflight = {}  # future -> jobId
 
         while True:
-            active_futures = {future for future in active_futures if not future.done()}
+            # 끝난 작업을 회수하고 결과를 확인한다. process_job이 스스로 FAILED를 백엔드에 보고하지만,
+            # 그 보고 자체가 실패한 경우(예: 백엔드 접속 불가)는 여기서 .result()로 잡는다.
+            # 이전에는 그 예외가 아무 흔적 없이 사라졌다.
+            for future in [f for f in inflight if f.done()]:
+                job_id = inflight.pop(future)
+                try:
+                    future.result()
+                except Exception:
+                    logger.exception("job crashed without being reported job=%s", job_id)
 
-            if len(active_futures) >= WORKER_CONCURRENCY:
+            if len(inflight) >= WORKER_CONCURRENCY:
                 time.sleep(0.1)
                 continue
 
@@ -61,20 +79,29 @@ def main():
             if payload is None:
                 continue
 
-            job = json.loads(payload)
-            print(f"[worker] received job {job['jobId']}")
-            active_futures.add(executor.submit(process_job, job))
+            try:
+                job = json.loads(payload)
+                job_id = job["jobId"]
+            except (ValueError, KeyError) as error:
+                # 예전엔 json.loads가 try 밖에 있어서 잘못된 메시지 하나가 루프 전체를 죽였다.
+                logger.error("dropping malformed queue message: %s", error)
+                continue
+
+            logger.info("received job=%s", job_id)
+            inflight[executor.submit(process_job, job)] = job_id
 
 
 def process_job(job):
+    job_id = job.get("jobId")
+    started_at = time.perf_counter()
     try:
-        update_job(job["jobId"], {"status": "PROCESSING"})
+        update_job(job_id, {"status": "PROCESSING"})
         result = optimize_image(job)
         if should_upload_result_file():
-            upload_result_file(job["jobId"], result)
+            upload_result_file(job_id, result)
         else:
             update_job(
-                job["jobId"],
+                job_id,
                 {
                     "status": "SUCCEEDED",
                     "resultImageUrl": result["resultImageUrl"],
@@ -83,16 +110,14 @@ def process_job(job):
                     "resultFileSizeBytes": result["resultFileSizeBytes"],
                 },
             )
-        print(f"[worker] job succeeded {job['jobId']}")
-    except Exception as error:
-        update_job(
-            job["jobId"],
-            {
-                "status": "FAILED",
-                "failureReason": str(error),
-            },
+        logger.info(
+            "job succeeded job=%s elapsedMs=%d",
+            job_id, int((time.perf_counter() - started_at) * 1000),
         )
-        print(f"[worker] job failed {job['jobId']}: {error}")
+    except Exception as error:
+        # 아래 보고가 실패해도 실패 자체는 남도록, 스택 트레이스를 먼저 기록한다.
+        logger.exception("job failed job=%s: %s", job_id, error)
+        update_job(job_id, {"status": "FAILED", "failureReason": str(error)})
 
 
 def optimize_image(job):
@@ -457,9 +482,9 @@ def upload_to_r2_or_local(object_key, data, output_format, output_file_path):
         if output_path:
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_bytes(data)
-            print(f"[worker] saved optimized file locally: {output_path}")
+            logger.info("saved optimized file locally: %s", output_path)
             return
-        print("[worker] R2 credentials not set, simulating upload only")
+        logger.warning("R2 credentials not set, simulating upload only")
         return
 
     import boto3
@@ -564,5 +589,5 @@ if __name__ == "__main__":
         try:
             main()
         except Exception as error:
-            print(f"[worker] fatal loop error: {error}")
+            logger.exception("fatal loop error, restarting in 3s: %s", error)
             time.sleep(3)

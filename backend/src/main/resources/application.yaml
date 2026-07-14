@@ -1,8 +1,8 @@
 spring:
   servlet:
     multipart:
-      max-file-size: ${MULTIPART_MAX_FILE_SIZE:500MB}
-      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:500MB}
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:12MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:48MB}
   datasource:
     url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:imageflow}}
     username: ${DB_USERNAME:imageflow}
@@ -34,6 +34,12 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+logging:
+  pattern:
+    # 요청 단위 correlation id(CorrelationIdFilter가 설정)를 모든 로그 라인에 넣는다.
+    # 레벨 슬롯에 얹어서 Spring Boot 기본 콘솔 패턴의 나머지는 그대로 유지한다.
+    level: "%5p [corrId=%X{corrId:-}]"
 
 springdoc:
   api-docs:
@@ -76,8 +82,13 @@ app:
     root: ${APP_STORAGE_ROOT:../storage}
   upload:
     max-batch-size: ${APP_UPLOAD_MAX_BATCH_SIZE:10}
+    # 업로드는 워커로 넘기기 전에 힙에 버퍼링되므로, 이 한도는 디스크 용량이 아니라
+    # 512MB 무료 인스턴스(기본 힙 ~128MB)에 맞춰 잡는다.
+    max-file-bytes: ${APP_UPLOAD_MAX_FILE_BYTES:10485760}
+    max-total-bytes: ${APP_UPLOAD_MAX_TOTAL_BYTES:41943040}
+    max-image-pixels: ${APP_UPLOAD_MAX_IMAGE_PIXELS:30000000}
     max-zip-entry-count: ${APP_UPLOAD_MAX_ZIP_ENTRY_COUNT:32}
-    max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:52428800}
-    max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:209715200}
+    max-zip-entry-bytes: ${APP_UPLOAD_MAX_ZIP_ENTRY_BYTES:10485760}
+    max-zip-total-bytes: ${APP_UPLOAD_MAX_ZIP_TOTAL_BYTES:41943040}
   rate-limit:
     upload-requests-per-minute: ${APP_RATE_LIMIT_UPLOAD_REQUESTS_PER_MINUTE:30}
