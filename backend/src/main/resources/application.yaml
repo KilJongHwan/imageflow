@@ -34,6 +34,14 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      # 무료 512MB 인스턴스는 동시 처리량이 얼마 안 되므로(업로드 rate-limit 30/분),
+      # 기본 200 스레드는 스택만으로 RSS를 낭비한다. 20으로 줄여 네이티브 메모리를 아낀다.
+      max: ${TOMCAT_MAX_THREADS:20}
+      min-spare: 2
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:50}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:20}
 
 logging:
   pattern:
